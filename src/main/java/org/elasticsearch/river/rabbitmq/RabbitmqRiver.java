@@ -19,10 +19,7 @@
 
 package org.elasticsearch.river.rabbitmq;
 
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
-import com.rabbitmq.client.QueueingConsumer;
+import com.rabbitmq.client.*;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
@@ -81,11 +78,11 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
         if (settings.settings().containsKey("rabbitmq")) {
             Map<String, Object> rabbitSettings = (Map<String, Object>) settings.settings().get("rabbitmq");
-            rabbitHost = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), ConnectionFactory.DEFAULT_HOST);
-            rabbitPort = XContentMapValues.nodeIntegerValue(rabbitSettings.get("port"), ConnectionFactory.DEFAULT_AMQP_PORT);
-            rabbitUser = XContentMapValues.nodeStringValue(rabbitSettings.get("user"), ConnectionFactory.DEFAULT_USER);
-            rabbitPassword = XContentMapValues.nodeStringValue(rabbitSettings.get("pass"), ConnectionFactory.DEFAULT_PASS);
-            rabbitVhost = XContentMapValues.nodeStringValue(rabbitSettings.get("vhost"), ConnectionFactory.DEFAULT_VHOST);
+            rabbitHost = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), "localhost");
+            rabbitPort = XContentMapValues.nodeIntegerValue(rabbitSettings.get("port"), AMQP.PROTOCOL.PORT);
+            rabbitUser = XContentMapValues.nodeStringValue(rabbitSettings.get("user"), "guest");
+            rabbitPassword = XContentMapValues.nodeStringValue(rabbitSettings.get("pass"), "guest");
+            rabbitVhost = XContentMapValues.nodeStringValue(rabbitSettings.get("vhost"), "/");
 
 
             rabbitQueue = XContentMapValues.nodeStringValue(rabbitSettings.get("queue"), "elasticsearch");
@@ -100,11 +97,11 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 rabbitQueueArgs = (Map<String, Object>)rabbitSettings.get("args");
             }
         } else {
-            rabbitHost = ConnectionFactory.DEFAULT_HOST;
-            rabbitPort = ConnectionFactory.DEFAULT_AMQP_PORT;
-            rabbitUser = ConnectionFactory.DEFAULT_USER;
-            rabbitPassword = ConnectionFactory.DEFAULT_PASS;
-            rabbitVhost = ConnectionFactory.DEFAULT_VHOST;
+            rabbitHost = "localhost";
+            rabbitPort = AMQP.PROTOCOL.PORT;
+            rabbitUser = "guest";
+            rabbitPassword = "guest";
+            rabbitVhost = "/";
 
             rabbitQueue = "elasticsearch";
             rabbitQueueAutoDelete = false;
