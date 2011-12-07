@@ -61,6 +61,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final boolean rabbitExchangeDurable;
     private final boolean rabbitQueueDurable;
     private final boolean rabbitQueueAutoDelete;
+    private Map rabbitQueueArgs = null; //extra arguments passed to queue for creation (ha settings for example)
 
     private final int bulkSize;
     private final TimeValue bulkTimeout;
@@ -94,6 +95,10 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitExchangeDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("exchange_durable"), true);
             rabbitQueueDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_durable"), true);
             rabbitQueueAutoDelete = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_auto_delete"), false);
+
+            if (rabbitSettings.containsKey("args")) {
+                rabbitQueueArgs = (Map<String, Object>)rabbitSettings.get("args");
+            }
         } else {
             rabbitHost = ConnectionFactory.DEFAULT_HOST;
             rabbitPort = ConnectionFactory.DEFAULT_AMQP_PORT;
@@ -184,7 +189,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 // define the queue
                 try {
                     channel.exchangeDeclare(rabbitExchange/*exchange*/, rabbitExchangeType/*type*/, rabbitExchangeDurable);
-                    channel.queueDeclare(rabbitQueue/*queue*/, rabbitQueueDurable/*durable*/, false/*exclusive*/, rabbitQueueAutoDelete/*autoDelete*/, null);
+                    channel.queueDeclare(rabbitQueue/*queue*/, rabbitQueueDurable/*durable*/, false/*exclusive*/, rabbitQueueAutoDelete/*autoDelete*/, rabbitQueueArgs/*extra args*/);
                     channel.queueBind(rabbitQueue/*queue*/, rabbitExchange/*exchange*/, rabbitRoutingKey/*routingKey*/);
                     channel.basicConsume(rabbitQueue/*queue*/, false/*noAck*/, consumer);
                 } catch (Exception e) {
