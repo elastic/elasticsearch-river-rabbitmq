@@ -20,7 +20,6 @@
 package org.elasticsearch.plugin.river.rabbitmq;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.river.RiversModule;
 import org.elasticsearch.river.rabbitmq.RabbitmqRiverModule;
@@ -44,10 +43,7 @@ public class RabbitmqRiverPlugin extends AbstractPlugin {
         return "River RabbitMQ Plugin";
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (module instanceof RiversModule) {
-            ((RiversModule) module).registerRiver("rabbitmq", RabbitmqRiverModule.class);
-        }
+    public void onModule(RiversModule module) {
+        module.registerRiver("rabbitmq", RabbitmqRiverModule.class);
     }
 }

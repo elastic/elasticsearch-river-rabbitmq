@@ -21,9 +21,9 @@ package org.elasticsearch.river.rabbitmq;
 
 import com.rabbitmq.client.*;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
@@ -94,7 +94,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitQueueAutoDelete = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_auto_delete"), false);
 
             if (rabbitSettings.containsKey("args")) {
-                rabbitQueueArgs = (Map<String, Object>)rabbitSettings.get("args");
+                rabbitQueueArgs = (Map<String, Object>) rabbitSettings.get("args");
             }
         } else {
             rabbitHost = "localhost";
