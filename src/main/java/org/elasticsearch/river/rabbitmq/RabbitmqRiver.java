@@ -163,7 +163,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
         public void run() {
             while (true) {
                 if (closed) {
-                    return;
+                    break;
                 }
                 try {
                     connection = connectionFactory.newConnection();
@@ -305,18 +305,19 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                     }
                 }
             }
+            cleanup(0, "closing river");
         }
 
         private void cleanup(int code, String message) {
             try {
                 channel.close(code, message);
             } catch (Exception e) {
-                logger.debug("failed to close channel", e);
+                logger.debug("failed to close channel on [{}]", e, message);
             }
             try {
                 connection.close(code, message);
             } catch (Exception e) {
-                logger.debug("failed to close connection", e);
+                logger.debug("failed to close connection on [{}]", e, message);
             }
         }
     }
