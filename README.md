@@ -52,6 +52,28 @@ Creating the rabbitmq river is as simple as (all configuration parameters are pr
 	    }
 	}'
 
+Addresses(host-port pairs) also available. it is useful to taking advantage rabbitmq HA(active/active) without any rabbitmq load balancer.
+(http://www.rabbitmq.com/ha.html)
+	
+		...
+	    "rabbitmq" : {
+	    	"addresses" : [
+	        	{
+	        		"host" : "rabbitmq-host1", 
+	        		"port" : 5672
+	        	},
+	        	{
+	        		"host" : "rabbitmq-host2", 
+	        		"port" : 5672
+	        	}
+	        ],
+	        "user" : "guest",
+	        "pass" : "guest",
+	        "vhost" : "/",
+	        ...
+		}
+		...
+
 The river is automatically bulking queue messages if the queue is overloaded, allowing for faster catchup with the messages streamed into the queue. The `ordered` flag allows to make sure that the messages will be indexed in the same order as they arrive in the query by blocking on the bulk request before picking up the next data to be indexed. It can also be used as a simple way to throttle indexing.
 
 License
