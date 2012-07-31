@@ -35,6 +35,7 @@ import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiverSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -45,8 +46,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
     private final Client client;
 
-    private final String rabbitHost;
-    private final int rabbitPort;
+    private final Address[] rabbitAddresses;
     private final String rabbitUser;
     private final String rabbitPassword;
     private final String rabbitVhost;
@@ -78,12 +78,23 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
         if (settings.settings().containsKey("rabbitmq")) {
             Map<String, Object> rabbitSettings = (Map<String, Object>) settings.settings().get("rabbitmq");
-            rabbitHost = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), "localhost");
-            rabbitPort = XContentMapValues.nodeIntegerValue(rabbitSettings.get("port"), AMQP.PROTOCOL.PORT);
+
+            if (rabbitSettings.containsKey("addresses")) {
+                List<Address> addresses = new ArrayList<Address>();
+                for(Map<String, Object> address : (List<Map<String, Object>>) rabbitSettings.get("addresses")) {
+                    addresses.add( new Address(XContentMapValues.nodeStringValue(address.get("host"), "localhost"),
+                            XContentMapValues.nodeIntegerValue(address.get("port"), AMQP.PROTOCOL.PORT)));
+                }
+                rabbitAddresses = addresses.toArray(new Address[addresses.size()]);
+            } else {
+                String rabbitHost = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), "localhost");
+                int rabbitPort = XContentMapValues.nodeIntegerValue(rabbitSettings.get("port"), AMQP.PROTOCOL.PORT);
+                rabbitAddresses = new Address[]{ new Address(rabbitHost, rabbitPort) };
+            }
+
             rabbitUser = XContentMapValues.nodeStringValue(rabbitSettings.get("user"), "guest");
             rabbitPassword = XContentMapValues.nodeStringValue(rabbitSettings.get("pass"), "guest");
             rabbitVhost = XContentMapValues.nodeStringValue(rabbitSettings.get("vhost"), "/");
-
 
             rabbitQueue = XContentMapValues.nodeStringValue(rabbitSettings.get("queue"), "elasticsearch");
             rabbitExchange = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange"), "elasticsearch");
@@ -97,8 +108,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 rabbitQueueArgs = (Map<String, Object>) rabbitSettings.get("args");
             }
         } else {
-            rabbitHost = "localhost";
-            rabbitPort = AMQP.PROTOCOL.PORT;
+            rabbitAddresses = new Address[]{ new Address("localhost", AMQP.PROTOCOL.PORT) };
             rabbitUser = "guest";
             rabbitPassword = "guest";
             rabbitVhost = "/";
@@ -131,13 +141,11 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     @Override
     public void start() {
         connectionFactory = new ConnectionFactory();
-        connectionFactory.setHost(rabbitHost);
-        connectionFactory.setPort(rabbitPort);
         connectionFactory.setUsername(rabbitUser);
         connectionFactory.setPassword(rabbitPassword);
         connectionFactory.setVirtualHost(rabbitVhost);
 
-        logger.info("creating rabbitmq river, host [{}], port [{}], user [{}], vhost [{}]", connectionFactory.getHost(), connectionFactory.getPort(), connectionFactory.getUsername(), connectionFactory.getVirtualHost());
+        logger.info("creating rabbitmq river, addresses [{}], user [{}], vhost [{}]", rabbitAddresses, connectionFactory.getUsername(), connectionFactory.getVirtualHost());
 
         thread = EsExecutors.daemonThreadFactory(settings.globalSettings(), "rabbitmq_river").newThread(new Consumer());
         thread.start();
@@ -166,7 +174,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                     break;
                 }
                 try {
-                    connection = connectionFactory.newConnection();
+                    connection = connectionFactory.newConnection(rabbitAddresses);
                     channel = connection.createChannel();
                 } catch (Exception e) {
                     if (!closed) {
