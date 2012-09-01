@@ -35,6 +35,7 @@ import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiverSettings;
 
 import java.io.IOException;
+import java.lang.Thread;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -67,8 +68,6 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final boolean ordered;
 
     private volatile boolean closed = false;
-
-    //private volatile Thread thread;
 
     private Thread[] allConsumers;
 
@@ -151,14 +150,13 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
         connectionFactory.setPassword(rabbitPassword);
         connectionFactory.setVirtualHost(rabbitVhost);
 
-        logger.info("creating rabbitmq river, addresses [{}], user [{}], vhost [{}, with {} consumers]", rabbitAddresses, connectionFactory.getUsername(), connectionFactory.getVirtualHost(),numConsumers);
+        logger.info("creating rabbitmq river, addresses [{}], user [{}], vhost [{}], with [{}] consumers]", rabbitAddresses, connectionFactory.getUsername(), connectionFactory.getVirtualHost(),numConsumers);
+
         allConsumers = new Thread[numConsumers];
-        int i=0;
-        for (Thread thread : allConsumers) {
-            thread = EsExecutors.daemonThreadFactory(settings.globalSettings(), "rabbitmq_river").newThread(new Consumer());
+        for (int i=0; i< numConsumers;++i) {
+            Thread thread = EsExecutors.daemonThreadFactory(settings.globalSettings(), "rabbitmq_river").newThread(new Consumer());
             thread.start();
             allConsumers[i]=thread;
-            ++i;
         }
     }
 
