@@ -49,10 +49,10 @@ public class RabbitMQRiverTest {
         ch.exchangeDeclare("elasticsearch", "direct", true);
         ch.queueDeclare("elasticsearch", true, false, false, null);
 
-        String message = "{ \"index\" : { \"index\" : \"test\", \"type\" : \"type1\", \"id\" : \"1\" }\n" +
+        String message = "{ \"index\" : { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"1\" }\n" +
                 "{ \"type1\" : { \"field1\" : \"value1\" } }\n" +
-                "{ \"delete\" : { \"index\" : \"test\", \"type\" : \"type1\", \"id\" : \"2\" } }\n" +
-                "{ \"create\" : { \"index\" : \"test\", \"type\" : \"type1\", \"id\" : \"1\" }\n" +
+                "{ \"delete\" : { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"2\" } }\n" +
+                "{ \"create\" : { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"1\" }\n" +
                 "{ \"type1\" : { \"field1\" : \"value1\" } }";
 
         ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
