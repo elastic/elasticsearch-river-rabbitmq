@@ -21,14 +21,28 @@ package org.elasticsearch.river.rabbitmq;
 
 import com.rabbitmq.client.*;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.base.Charsets;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.river.AbstractRiverComponent;
 import org.elasticsearch.river.River;
 import org.elasticsearch.river.RiverName;
@@ -314,6 +328,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 					customCommand = headerVal.toString();
 			}
 
+			// no custom command - batch request
 			if (null == customCommand || customCommand.isEmpty()) {
 				try {
 					bulkRequestBuilder.add(task.getBody(), 0, task.getBody().length, false);
@@ -328,8 +343,11 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 					}
 					return false;
 				}
+				// mapping request
 			} else if (customCommand.equalsIgnoreCase("mapping")) {
 				try {
+					CommandParser parser = new CommandParser(task.getBody());
+					PutMappingResponse response = client.admin().indices().preparePutMapping(parser.getIndex()).setType(parser.getType()).setSource(parser.content).execute().actionGet();
 
 				} catch (Exception e) {
 					logger.warn("failed to update mapping for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
@@ -350,6 +368,134 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 				}
 				return false;
 			}
+		}
+
+		class CommandParser {
+			private String index = null;
+			private String type = null;
+			private String content = null;
+
+			public CommandParser(byte[] data) throws Exception {
+				BytesArray arr = new BytesArray(data, 0, data.length);
+				parse(arr);
+			}
+
+			private void parse(BytesReference data) throws Exception {
+				XContent xContent = XContentFactory.xContent(data);
+				String source = XContentBuilder.builder(xContent).string();
+				int from = 0;
+				int length = data.length();
+				byte marker = xContent.streamSeparator();
+				int nextMarker = findNextMarker(marker, from, data, length);
+				if (nextMarker == -1) {
+					throw new Exception("Wrong object structure");
+				}
+				// now parse the action
+				XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from));
+
+				try {
+					// move pointers
+					from = nextMarker + 1;
+
+					// Move to START_OBJECT
+					XContentParser.Token token = parser.nextToken();
+					if (token == null) {
+						throw new Exception("Wrong object structure");
+					}
+					assert token == XContentParser.Token.START_OBJECT;
+					// Move to FIELD_NAME, that's the action
+					// token = parser.nextToken();
+					// assert token == XContentParser.Token.FIELD_NAME;
+					// String action = parser.currentName();
+
+					String id = null;
+					String routing = null;
+					String parent = null;
+					String timestamp = null;
+					Long ttl = null;
+					String opType = null;
+					long version = 0;
+					VersionType versionType = VersionType.INTERNAL;
+					String percolate = null;
+
+					// at this stage, next token can either be END_OBJECT
+					// (and use default index and type, with auto generated
+					// id)
+					// or START_OBJECT which will have another set of
+					// parameters
+
+					String currentFieldName = null;
+					while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+						if (token == XContentParser.Token.FIELD_NAME) {
+							currentFieldName = parser.currentName();
+						} else if (token.isValue()) {
+							if ("_index".equals(currentFieldName)) {
+								index = parser.text();
+							} else if ("_type".equals(currentFieldName)) {
+								type = parser.text();
+							} else if ("_id".equals(currentFieldName)) {
+								id = parser.text();
+							} else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
+								routing = parser.text();
+							} else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
+								parent = parser.text();
+							} else if ("_timestamp".equals(currentFieldName) || "timestamp".equals(currentFieldName)) {
+								timestamp = parser.text();
+							} else if ("_ttl".equals(currentFieldName) || "ttl".equals(currentFieldName)) {
+								if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+									ttl = TimeValue.parseTimeValue(parser.text(), null).millis();
+								} else {
+									ttl = parser.longValue();
+								}
+							} else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
+								opType = parser.text();
+							} else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
+								version = parser.longValue();
+							} else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName)
+									|| "versionType".equals(currentFieldName)) {
+								versionType = VersionType.fromString(parser.text());
+							} else if ("percolate".equals(currentFieldName) || "_percolate".equals(currentFieldName)) {
+								percolate = parser.textOrNull();
+							}
+						}
+					}
+					nextMarker = findNextMarker(marker, from, data, length);
+					if (nextMarker == -1) {
+						nextMarker = length;
+					}
+					content = getString(data.slice(from, nextMarker - from));
+
+				} finally {
+					parser.close();
+				}
+
+			}
+
+			private int findNextMarker(byte marker, int from, BytesReference data, int length) {
+				for (int i = from; i < length; i++) {
+					if (data.get(i) == marker) {
+						return i;
+					}
+				}
+				return -1;
+			}
+		    
+			String getString( BytesReference data) throws IOException {
+		        return new String(data.array(), data.arrayOffset(), data.length(), Charsets.UTF_8);
+		    }
+
+			String getIndex() {
+				return index;
+			}
+
+			String getType() {
+				return type;
+			}
+
+			String getContent() {
+				return content;
+			}
+
 		}
 
 		private void cleanup(int code, String message) {
