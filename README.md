@@ -34,7 +34,7 @@ RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.co
 Special Commands
 ----------------
 Since 1.5.0 RabbitMQ River also supports the put mapping message. 
-To send this message you need to add a special header to the RabbitMQ message: *"X-ES-Command" = "mapping"*.
+To send this message you need to add a special header to the RabbitMQ message: **"X-ES-Command" = "mapping"**.
 The body of the message contains a meta-data header (similar to the bulk api format, but without the containing object), followed by a new line, and then the mapping source:
 
 	{ "_index" : "twitter", "_type" : "tweet" }
