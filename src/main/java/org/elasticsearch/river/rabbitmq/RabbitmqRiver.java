@@ -277,7 +277,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 									BulkResponse response = bulkRequestBuilder.execute().actionGet();
 									if (response.hasFailures()) {
 										// TODO write to exception queue?
-										logger.warn("failed to execute" + response.buildFailureMessage());
+										logger.warn("failed to execute some - " + response.buildFailureMessage());
 									}
 								}
 								for (Long deliveryTag : deliveryTags) {
@@ -296,7 +296,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 								public void onResponse(BulkResponse response) {
 									if (response.hasFailures()) {
 										// TODO write to exception queue?
-										logger.warn("failed to execute" + response.buildFailureMessage());
+										logger.warn("failed to execute some - " + response.buildFailureMessage());
 									}
 									for (Long deliveryTag : deliveryTags) {
 										try {
