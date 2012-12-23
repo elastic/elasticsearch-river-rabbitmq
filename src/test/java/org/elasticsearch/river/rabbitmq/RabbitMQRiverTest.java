@@ -72,18 +72,21 @@ public class RabbitMQRiverTest {
                 "{ \"create\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"1\" }\n" +
                 "{ \"type1\" : { \"field1\" : \"value1\" } }";
 
-       // ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
 
         String mapping = "{ \"type2\" : { \"properties\" : {\"data\" : {\"dynamic\" : true,\"properties\" : {\"myString\" : {\"type\" : \"string\",\"boost\" : 1.0,\"index\" : \"not_analyzed\",\"store\" : \"no\"},\"myText\" : {\"type\" : \"string\",\"include_in_all\" : true,\"index\" : \"analyzed\",\"store\" : \"no\"}}}}}}";
         String mappingMessage = "{ \"_index\" : \"mqtest\", \"_type\" : \"type2\"}\n" +
         						mapping;
+        String partialmappingMessage = "{ \"_index\" : \"mqtest\", \"_type\" : \"type2\"}";
         
         HashMap<String,Object> headers = new HashMap<String, Object>();
         headers.put("X-ES-Command", "mapping");
         BasicProperties props = MessageProperties.MINIMAL_BASIC;
         props = props.builder().headers(headers).build();
         ch.basicPublish("elasticsearch", "elasticsearch", props, mappingMessage.getBytes());
-        
+
+        Thread.sleep(5000);
+        ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
+
         ch.close();
         conn.close();
 

@@ -21,6 +21,7 @@ package org.elasticsearch.river.rabbitmq;
 
 import com.rabbitmq.client.*;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.river.AbstractRiverComponent;
 import org.elasticsearch.river.River;
 import org.elasticsearch.river.RiverName;
@@ -346,8 +348,16 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 				// mapping request
 			} else if (customCommand.equalsIgnoreCase("mapping")) {
 				try {
-					CommandParser parser = new CommandParser(task.getBody());
+					CommandParser parser = null;
+					try{
+					parser = new CommandParser(task.getBody());
 					PutMappingResponse response = client.admin().indices().preparePutMapping(parser.getIndex()).setType(parser.getType()).setSource(parser.content).execute().actionGet();
+					}
+					catch (IndexMissingException im){
+						// if the index has not been created yet, we can should it with this mapping
+						logger.trace("index {} is missing, creating with mappin", parser.getIndex());
+						CreateIndexResponse res = client.admin().indices().prepareCreate(parser.getIndex()).addMapping(parser.getType(), parser.content).execute().actionGet();
+					}
 
 				} catch (Exception e) {
 					logger.warn("failed to update mapping for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
@@ -388,7 +398,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 				byte marker = xContent.streamSeparator();
 				int nextMarker = findNextMarker(marker, from, data, length);
 				if (nextMarker == -1) {
-					throw new Exception("Wrong object structure");
+					nextMarker = length;
 				}
 				// now parse the action
 				XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from));
@@ -459,11 +469,13 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 							}
 						}
 					}
-					nextMarker = findNextMarker(marker, from, data, length);
-					if (nextMarker == -1) {
-						nextMarker = length;
+					if (nextMarker < length) {
+						nextMarker = findNextMarker(marker, from, data, length);
+						if (nextMarker == -1) {
+							nextMarker = length;
+						}
+						content = getString(data.slice(from, nextMarker - from));
 					}
-					content = getString(data.slice(from, nextMarker - from));
 
 				} finally {
 					parser.close();
@@ -479,10 +491,10 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 				}
 				return -1;
 			}
-		    
-			String getString( BytesReference data) throws IOException {
-		        return new String(data.array(), data.arrayOffset(), data.length(), Charsets.UTF_8);
-		    }
+
+			String getString(BytesReference data) throws IOException {
+				return new String(data.array(), data.arrayOffset(), data.length(), Charsets.UTF_8);
+			}
 
 			String getIndex() {
 				return index;
