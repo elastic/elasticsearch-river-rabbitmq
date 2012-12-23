@@ -355,7 +355,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 					}
 					catch (IndexMissingException im){
 						// if the index has not been created yet, we can should it with this mapping
-						logger.trace("index {} is missing, creating with mappin", parser.getIndex());
+						logger.trace("index {} is missing, creating with mapping", parser.getIndex());
 						CreateIndexResponse res = client.admin().indices().prepareCreate(parser.getIndex()).addMapping(parser.getType(), parser.content).execute().actionGet();
 					}
 
