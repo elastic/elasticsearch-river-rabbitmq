@@ -80,6 +80,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 	private final int bulkSize;
 	private final TimeValue bulkTimeout;
 	private final boolean ordered;
+	private final boolean warnOnBulkErrors;
 
 	private volatile boolean closed = false;
 
@@ -147,10 +148,12 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 				bulkTimeout = TimeValue.timeValueMillis(10);
 			}
 			ordered = XContentMapValues.nodeBooleanValue(indexSettings.get("ordered"), false);
+			warnOnBulkErrors = XContentMapValues.nodeBooleanValue(indexSettings.get("warnOnBulkErrors"), true);
 		} else {
 			bulkSize = 100;
 			bulkTimeout = TimeValue.timeValueMillis(10);
 			ordered = false;
+			warnOnBulkErrors = true;
 		}
 	}
 
@@ -231,7 +234,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 					}
 					QueueingConsumer.Delivery task;
 					try {
-						task = consumer.nextDelivery(bulkTimeout.millis());
+						task = consumer.nextDelivery();
 					} catch (Exception e) {
 						if (!closed) {
 							logger.error("failed to get next message, reconnecting...", e);
@@ -277,7 +280,10 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 									BulkResponse response = bulkRequestBuilder.execute().actionGet();
 									if (response.hasFailures()) {
 										// TODO write to exception queue?
-										logger.warn("failed to execute some - " + response.buildFailureMessage());
+										if (warnOnBulkErrors)
+											logger.warn("failed to execute some - " + response.buildFailureMessage());
+										else
+											logger.debug("failed to execute some - " + response.buildFailureMessage());
 									}
 								}
 								for (Long deliveryTag : deliveryTags) {
@@ -296,7 +302,10 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 								public void onResponse(BulkResponse response) {
 									if (response.hasFailures()) {
 										// TODO write to exception queue?
-										logger.warn("failed to execute some - " + response.buildFailureMessage());
+										if (warnOnBulkErrors)
+											logger.warn("failed to execute some - " + response.buildFailureMessage());
+										else
+											logger.debug("failed to execute some - " + response.buildFailureMessage());
 									}
 									for (Long deliveryTag : deliveryTags) {
 										try {
