@@ -231,7 +231,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 					}
 					QueueingConsumer.Delivery task;
 					try {
-						task = consumer.nextDelivery();
+						task = consumer.nextDelivery(bulkTimeout.millis());
 					} catch (Exception e) {
 						if (!closed) {
 							logger.error("failed to get next message, reconnecting...", e);
@@ -352,11 +352,13 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 					try{
 					parser = new CommandParser(task.getBody());
 					PutMappingResponse response = client.admin().indices().preparePutMapping(parser.getIndex()).setType(parser.getType()).setSource(parser.content).execute().actionGet();
+					channel.basicAck(task.getEnvelope().getDeliveryTag(), false);
 					}
 					catch (IndexMissingException im){
 						// if the index has not been created yet, we can should it with this mapping
 						logger.trace("index {} is missing, creating with mapping", parser.getIndex());
 						CreateIndexResponse res = client.admin().indices().prepareCreate(parser.getIndex()).addMapping(parser.getType(), parser.content).execute().actionGet();
+						channel.basicAck(task.getEnvelope().getDeliveryTag(), false);
 					}
 
 				} catch (Exception e) {
