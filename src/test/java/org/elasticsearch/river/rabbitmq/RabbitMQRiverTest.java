@@ -86,7 +86,9 @@ public class RabbitMQRiverTest {
 
         Thread.sleep(5000);
         ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
-
+        ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
+        ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
+        ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
         ch.close();
         conn.close();
 
