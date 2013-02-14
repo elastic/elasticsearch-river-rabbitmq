@@ -393,8 +393,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 					CommandParser parser = null;
 					parser = new CommandParser(task.getBody());
 					if (null != parser.getIndex()) {
-						DeleteByQueryRequest dreq = new DeleteByQueryRequest();
-						dreq.indices(parser.getIndex());
+						DeleteByQueryRequest dreq = new DeleteByQueryRequest(parser.getIndex());
 						if (null != parser.getType())
 							dreq.types(parser.getType());
 						if (null != parser.queryString)
