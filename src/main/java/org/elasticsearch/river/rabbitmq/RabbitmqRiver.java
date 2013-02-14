@@ -27,6 +27,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
@@ -44,6 +46,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.river.AbstractRiverComponent;
 import org.elasticsearch.river.River;
@@ -74,6 +78,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 	private final boolean rabbitExchangeDurable;
 	private final boolean rabbitQueueDurable;
 	private final boolean rabbitQueueAutoDelete;
+	private final int rabbitNumPrefetch;
 	private Map rabbitQueueArgs = null; // extra arguments passed to queue for
 										// creation (ha settings for example)
 
@@ -119,6 +124,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 			rabbitExchangeDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("exchange_durable"), true);
 			rabbitQueueDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_durable"), true);
 			rabbitQueueAutoDelete = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_auto_delete"), false);
+			rabbitNumPrefetch = XContentMapValues.nodeIntegerValue(rabbitSettings.get("queue_prefetch"), 0);
 
 			if (rabbitSettings.containsKey("args")) {
 				rabbitQueueArgs = (Map<String, Object>) rabbitSettings.get("args");
@@ -136,6 +142,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 			rabbitExchangeType = "direct";
 			rabbitExchangeDurable = true;
 			rabbitRoutingKey = "elasticsearch";
+			rabbitNumPrefetch = 0;
 		}
 
 		if (settings.settings().containsKey("index")) {
@@ -192,6 +199,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 				try {
 					connection = connectionFactory.newConnection(rabbitAddresses);
 					channel = connection.createChannel();
+					if (rabbitNumPrefetch > 0)
+						channel.basicQos(rabbitNumPrefetch);
 				} catch (Exception e) {
 					if (!closed) {
 						logger.warn("failed to created a connection / channel", e);
@@ -349,25 +358,52 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 			} else if (customCommand.equalsIgnoreCase("mapping")) {
 				try {
 					CommandParser parser = null;
-					try{
-					parser = new CommandParser(task.getBody());
-					PutMappingResponse response = client.admin().indices().preparePutMapping(parser.getIndex()).setType(parser.getType()).setSource(parser.content).execute().actionGet();
-					}
-					catch (IndexMissingException im){
-						// if the index has not been created yet, we can should it with this mapping
+					try {
+						parser = new CommandParser(task.getBody());
+						PutMappingResponse response = client.admin().indices().preparePutMapping(parser.getIndex()).setType(parser.getType()).setSource(parser.content).execute().actionGet();
+					} catch (IndexMissingException im) {
+						// if the index has not been created yet, we can should
+						// it with this mapping
 						logger.trace("index {} is missing, creating with mappin", parser.getIndex());
 						CreateIndexResponse res = client.admin().indices().prepareCreate(parser.getIndex()).addMapping(parser.getType(), parser.content).execute().actionGet();
 					}
 
 				} catch (Exception e) {
-					logger.warn("failed to update mapping for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
+					logger.warn("failed to update mapping for delivery tag [{}]", e, task.getEnvelope().getDeliveryTag());
+				}
+				finally{
 					try {
 						channel.basicAck(task.getEnvelope().getDeliveryTag(), false);
 					} catch (Exception e1) {
-						logger.warn("failed to ack on failure [{}]", e1, task.getEnvelope().getDeliveryTag());
+						logger.warn("failed to ack on [{}]", e1, task.getEnvelope().getDeliveryTag());
 					}
 				}
-
+				return true;
+			} else if (customCommand.equalsIgnoreCase("deleteByQuery")) {
+				try {
+					CommandParser parser = null;
+					parser = new CommandParser(task.getBody());
+					if (null != parser.getIndex()) {
+						DeleteByQueryRequest dreq = new DeleteByQueryRequest();
+						dreq.indices(parser.getIndex());
+						if (null != parser.getType())
+							dreq.types(parser.getType());
+						if (null != parser.queryString)
+							dreq.query(new QueryStringQueryBuilder(parser.queryString));
+						else
+							dreq.query(parser.content);
+						DeleteByQueryResponse response = client.deleteByQuery(dreq).actionGet();
+					}
+				} catch (Exception e) {
+					logger.warn("failed to delete by query for delivery tag [{}]", e, task.getEnvelope().getDeliveryTag());
+				}
+				finally{
+					try {
+						channel.basicAck(task.getEnvelope().getDeliveryTag(), false);
+					} catch (Exception e1) {
+						logger.warn("failed to ack on [{}]", e1, task.getEnvelope().getDeliveryTag());
+					}
+				}
 				return true;
 			} else {
 				logger.warn("unknown custom command - {} [{}], ack'ing...", customCommand, task.getEnvelope().getDeliveryTag());
@@ -383,6 +419,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 		class CommandParser {
 			private String index = null;
 			private String type = null;
+			private String queryString = null;
 			private String content = null;
 
 			public CommandParser(byte[] data) throws Exception {
@@ -443,6 +480,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 								index = parser.text();
 							} else if ("_type".equals(currentFieldName)) {
 								type = parser.text();
+							} else if ("_queryString".equals(currentFieldName)) {
+								queryString = parser.text();
 							} else if ("_id".equals(currentFieldName)) {
 								id = parser.text();
 							} else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
@@ -502,6 +541,10 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
 			String getType() {
 				return type;
+			}
+
+			String getQueryString() {
+				return queryString;
 			}
 
 			String getContent() {

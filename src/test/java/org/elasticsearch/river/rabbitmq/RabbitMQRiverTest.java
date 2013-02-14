@@ -77,18 +77,24 @@ public class RabbitMQRiverTest {
         String mappingMessage = "{ \"_index\" : \"mqtest\", \"_type\" : \"type2\"}\n" +
         						mapping;
         String partialmappingMessage = "{ \"_index\" : \"mqtest\", \"_type\" : \"type2\"}";
+        String deleteByQuery = "{ \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_queryString\" : \"_id:1\"}\n";
+
+        ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
         
         HashMap<String,Object> headers = new HashMap<String, Object>();
         headers.put("X-ES-Command", "mapping");
         BasicProperties props = MessageProperties.MINIMAL_BASIC;
         props = props.builder().headers(headers).build();
         ch.basicPublish("elasticsearch", "elasticsearch", props, mappingMessage.getBytes());
-
+        headers.put("X-ES-Command", "deleteByQuery");
+        props = props.builder().headers(headers).build();
+        ch.basicPublish("elasticsearch", "elasticsearch", props, deleteByQuery.getBytes());
         Thread.sleep(5000);
         ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
         ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
         ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
-        ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
+        ch.basicPublish("elasticsearch", "elasticsearch", props, deleteByQuery.getBytes());
+        Thread.sleep(5000);
         ch.close();
         conn.close();
 
