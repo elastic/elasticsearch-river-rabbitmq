@@ -33,12 +33,21 @@ RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.co
 
 Special Commands
 ----------------
-Since 1.5.0 RabbitMQ River also supports the put mapping message. 
-To send this message you need to add a special header to the RabbitMQ message: **"X-ES-Command"** = **"mapping"**.
-The body of the message contains a meta-data header (similar to the bulk api format, but without the containing object), followed by a new line, and then the mapping source:
+Since 1.5.0 RabbitMQ River also supports special commands that are not covered in the bulk API.
+Supported commands for now are put mapping and delete by query.
+To send a custom command you need to add a special header to the RabbitMQ message: 
+**"X-ES-Command"** = **"mapping"** or **"X-ES-Command"** = **"delteByQuery"** 
+The body of the message contains a meta-data header (similar to the bulk api format, but without the containing object).
+A mapping command message is followed by a new line, and then the mapping source:
 
 	{ "_index" : "twitter", "_type" : "tweet" }
 	{ "tweet" : { "properties" : { "id_str " : { "type" : "string", "index" : "not_analyzed", "store" : "no" } } } }   
+	
+A delete by query command can contain a query string in the message:
+
+	{ "_index" : "twitter", "_type" : "tweet", "_queryString" : "_id:1" }
+
+or have a query JSON on the next line.
 
 Configuration
 -------------
