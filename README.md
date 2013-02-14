@@ -21,6 +21,8 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
     | 1.0.0           | 0.18             | 2.7.0           |
     --------------------------------------------------------
 
+Bulk API Messages
+-----------------
 RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.com/) queue. The format of the messages follows the bulk api format:
 
 	{ "index" : { "_index" : "twitter", "_type" : "tweet", "_id" : "1" } }
@@ -29,6 +31,17 @@ RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.co
 	{ "create" : { "_index" : "twitter", "_type" : "tweet", "_id" : "1" } }
 	{ "tweet" : { "text" : "another tweet" } }    
 
+Special Commands
+----------------
+Since 1.5.0 RabbitMQ River also supports the put mapping message. 
+To send this message you need to add a special header to the RabbitMQ message: **"X-ES-Command"** = **"mapping"**.
+The body of the message contains a meta-data header (similar to the bulk api format, but without the containing object), followed by a new line, and then the mapping source:
+
+	{ "_index" : "twitter", "_type" : "tweet" }
+	{ "tweet" : { "properties" : { "id_str " : { "type" : "string", "index" : "not_analyzed", "store" : "no" } } } }   
+
+Configuration
+-------------
 Creating the rabbitmq river is as simple as (all configuration parameters are provided, with default values):
 
 	curl -XPUT 'localhost:9200/_river/my_river/_meta' -d '{

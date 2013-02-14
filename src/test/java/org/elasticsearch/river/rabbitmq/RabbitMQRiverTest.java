@@ -53,6 +53,7 @@ public class RabbitMQRiverTest {
         node.client().prepareIndex("_river", "mqtest1", "_meta").setSource(
         		jsonBuilder().startObject().field("type", "rabbitmq")
         		.startObject("rabbitmq").field("host", "rabbit-qa1").endObject()
+        		.startObject("index").field("ordered", "true").field("warnOnBulkErrors", "false").endObject()
         		.endObject()
         		).execute().actionGet();
 
@@ -66,10 +67,11 @@ public class RabbitMQRiverTest {
         ch.queueDeclare("elasticsearch", true, false, false, null);
 
         Thread.sleep(5000);
-        String message = "{ \"index\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"1\" }\n" +
+        String message = "{ \"index\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"1\" , \"_version\" : \"2\"} }\n" +
                 "{ \"type1\" : { \"field1\" : \"value1\" } }\n" +
                 "{ \"delete\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"2\" } }\n" +
-                "{ \"create\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"1\" }\n" +
+                "{ \"create\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"1\" , \"_version\" : \"2\"} }\n" +
+                "{ \"create\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"1\" , \"_version\" : \"1\"} }\n" +
                 "{ \"type1\" : { \"field1\" : \"value1\" } }";
 
 
@@ -98,7 +100,7 @@ public class RabbitMQRiverTest {
         ch.close();
         conn.close();
 
-        Thread.sleep(5000);
+        Thread.sleep(50000);
         Boolean exists = node.client().get(new GetRequest("mqtest").id("1")).get().exists();
         ClusterState state = node.client().admin().cluster().state(new ClusterStateRequest().filteredIndices("mqtest")).get().state();
         ImmutableMap<String, MappingMetaData>  mappings = state.getMetaData().index("mqtest").mappings();
