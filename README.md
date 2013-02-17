@@ -41,7 +41,7 @@ To send a custom command you need to add a special header to the RabbitMQ messag
 	
 or 
 
-	"X-ES-Command" = "delteByQuery"
+	"X-ES-Command" = "deleteByQuery"
 	
 The body of the message contains a meta-data header (similar to the bulk api format, but without the containing object).
 A mapping command message is followed by a new line, and then the mapping source:
