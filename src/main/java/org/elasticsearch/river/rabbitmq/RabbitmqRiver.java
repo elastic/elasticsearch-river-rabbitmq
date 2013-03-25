@@ -74,7 +74,6 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final boolean ordered;
 
     private final ExecutableScript script;
-    private final Map<String, Object> scriptParams;
     
     private volatile boolean closed = false;
 
@@ -120,18 +119,18 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 rabbitQueueArgs = (Map<String, Object>) rabbitSettings.get("args");
             }
             
-            if (rabbitSettings.containsKey("script_params")) {
-                scriptParams = (Map<String, Object>) rabbitSettings.get("script_params");
-            } else {
-                scriptParams = Maps.newHashMap();
-            }
-            
             if (rabbitSettings.containsKey("script")) {
-                String scriptType = "js";
-                if(rabbitSettings.containsKey("scriptType")) {
-                    scriptType = rabbitSettings.get("scriptType").toString();
+                String scriptLang = "mvel";
+                if(rabbitSettings.containsKey("script_lang")) {
+                    scriptLang = rabbitSettings.get("script_lang").toString();
                 }
-                script = scriptService.executable(scriptType, rabbitSettings.get("script").toString(), scriptParams);
+                Map<String, Object> scriptParams = null;
+                if (rabbitSettings.containsKey("script_params")) {
+                    scriptParams = (Map<String, Object>) rabbitSettings.get("script_params");
+                } else {
+                    scriptParams = Maps.newHashMap();
+                }
+                script = scriptService.executable(scriptLang, rabbitSettings.get("script").toString(), scriptParams);
             } else {
                 script = null;
             }
@@ -149,7 +148,6 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitExchangeDurable = true;
             rabbitRoutingKey = "elasticsearch";
             script = null;
-            scriptParams = null;
         }
 
         if (settings.settings().containsKey("index")) {
@@ -302,10 +300,12 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
                         if (ordered) {
                             try {
-                                BulkResponse response = bulkRequestBuilder.execute().actionGet();
-                                if (response.hasFailures()) {
+                                if (bulkRequestBuilder.numberOfActions() > 0) {
+                                  BulkResponse response = bulkRequestBuilder.execute().actionGet();
+                                  if (response.hasFailures()) {
                                     // TODO write to exception queue?
                                     logger.warn("failed to execute" + response.buildFailureMessage());
+                                  }
                                 }
                                 for (Long deliveryTag : deliveryTags) {
                                     try {
@@ -318,27 +318,29 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                 logger.warn("failed to execute bulk", e);
                             }
                         } else {
-                            bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
-                                @Override
-                                public void onResponse(BulkResponse response) {
-                                    if (response.hasFailures()) {
-                                        // TODO write to exception queue?
-                                        logger.warn("failed to execute" + response.buildFailureMessage());
-                                    }
-                                    for (Long deliveryTag : deliveryTags) {
-                                        try {
-                                            channel.basicAck(deliveryTag, false);
-                                        } catch (Exception e1) {
-                                            logger.warn("failed to ack [{}]", e1, deliveryTag);
+                            if (bulkRequestBuilder.numberOfActions()>0) {
+                                bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
+                                    @Override
+                                    public void onResponse(BulkResponse response) {
+                                        if (response.hasFailures()) {
+                                          // TODO write to exception queue?
+                                          logger.warn("failed to execute" + response.buildFailureMessage());
+                                        }
+                                        for (Long deliveryTag : deliveryTags) {
+                                            try {
+                                                channel.basicAck(deliveryTag, false);
+                                            } catch (Exception e1) {
+                                                logger.warn("failed to ack [{}]", e1, deliveryTag);
+                                            }
                                         }
                                     }
-                                }
-
-                                @Override
-                                public void onFailure(Throwable e) {
-                                    logger.warn("failed to execute bulk for delivery tags [{}], not ack'ing", e, deliveryTags);
-                                }
-                            });
+                                    
+                                    @Override
+                                    public void onFailure(Throwable e) {
+                                        logger.warn("failed to execute bulk for delivery tags [{}], not ack'ing", e, deliveryTags);
+                                    }
+                                });
+                            }
                         }
                     }
                 }
