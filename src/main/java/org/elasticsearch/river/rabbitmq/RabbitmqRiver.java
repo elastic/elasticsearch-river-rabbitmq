@@ -19,12 +19,19 @@
 
 package org.elasticsearch.river.rabbitmq;
 
-import com.rabbitmq.client.*;
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.Address;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.QueueingConsumer;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -33,6 +40,8 @@ import org.elasticsearch.river.AbstractRiverComponent;
 import org.elasticsearch.river.River;
 import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiverSettings;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,6 +73,9 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final TimeValue bulkTimeout;
     private final boolean ordered;
 
+    private final ExecutableScript script;
+    private final Map<String, Object> scriptParams;
+    
     private volatile boolean closed = false;
 
     private volatile Thread thread;
@@ -72,7 +84,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
     @SuppressWarnings({"unchecked"})
     @Inject
-    public RabbitmqRiver(RiverName riverName, RiverSettings settings, Client client) {
+    public RabbitmqRiver(RiverName riverName, RiverSettings settings, Client client, ScriptService scriptService) {
         super(riverName, settings);
         this.client = client;
 
@@ -107,6 +119,22 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             if (rabbitSettings.containsKey("args")) {
                 rabbitQueueArgs = (Map<String, Object>) rabbitSettings.get("args");
             }
+            
+            if (rabbitSettings.containsKey("script_params")) {
+                scriptParams = (Map<String, Object>) rabbitSettings.get("script_params");
+            } else {
+                scriptParams = Maps.newHashMap();
+            }
+            
+            if (rabbitSettings.containsKey("script")) {
+                String scriptType = "js";
+                if(rabbitSettings.containsKey("scriptType")) {
+                    scriptType = rabbitSettings.get("scriptType").toString();
+                }
+                script = scriptService.executable(scriptType, rabbitSettings.get("script").toString(), scriptParams);
+            } else {
+                script = null;
+            }
         } else {
             rabbitAddresses = new Address[]{ new Address("localhost", AMQP.PROTOCOL.PORT) };
             rabbitUser = "guest";
@@ -120,6 +148,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitExchangeType = "direct";
             rabbitExchangeDurable = true;
             rabbitRoutingKey = "elasticsearch";
+            script = null;
+            scriptParams = null;
         }
 
         if (settings.settings().containsKey("index")) {
@@ -227,7 +257,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
 
                         try {
-                            bulkRequestBuilder.add(task.getBody(), 0, task.getBody().length, false);
+                            processBody(task.getBody(), bulkRequestBuilder);
                         } catch (Exception e) {
                             logger.warn("failed to parse request for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
                             try {
@@ -245,7 +275,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                             try {
                                 while ((task = consumer.nextDelivery(bulkTimeout.millis())) != null) {
                                     try {
-                                        bulkRequestBuilder.add(task.getBody(), 0, task.getBody().length, false);
+                                        processBody(task.getBody(), bulkRequestBuilder);
                                         deliveryTags.add(task.getEnvelope().getDeliveryTag());
                                     } catch (Exception e) {
                                         logger.warn("failed to parse request for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
@@ -326,6 +356,18 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 connection.close(code, message);
             } catch (Exception e) {
                 logger.debug("failed to close connection on [{}]", e, message);
+            }
+        }
+        
+        private void processBody(byte[] body, BulkRequestBuilder bulkRequestBuilder) throws Exception {
+            if (script == null) {
+                bulkRequestBuilder.add(body, 0, body.length, false);
+            } else {
+                script.setNextVar("body", body);
+                byte[] newBody = (byte[]) script.run();
+                if (newBody != null) {
+                    bulkRequestBuilder.add(newBody, 0, newBody.length, false);
+                }
             }
         }
     }
