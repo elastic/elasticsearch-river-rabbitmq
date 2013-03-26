@@ -118,22 +118,6 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             if (rabbitSettings.containsKey("args")) {
                 rabbitQueueArgs = (Map<String, Object>) rabbitSettings.get("args");
             }
-            
-            if (rabbitSettings.containsKey("script")) {
-                String scriptLang = "mvel";
-                if(rabbitSettings.containsKey("script_lang")) {
-                    scriptLang = rabbitSettings.get("script_lang").toString();
-                }
-                Map<String, Object> scriptParams = null;
-                if (rabbitSettings.containsKey("script_params")) {
-                    scriptParams = (Map<String, Object>) rabbitSettings.get("script_params");
-                } else {
-                    scriptParams = Maps.newHashMap();
-                }
-                script = scriptService.executable(scriptLang, rabbitSettings.get("script").toString(), scriptParams);
-            } else {
-                script = null;
-            }
         } else {
             rabbitAddresses = new Address[]{ new Address("localhost", AMQP.PROTOCOL.PORT) };
             rabbitUser = "guest";
@@ -147,7 +131,6 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitExchangeType = "direct";
             rabbitExchangeDurable = true;
             rabbitRoutingKey = "elasticsearch";
-            script = null;
         }
 
         if (settings.settings().containsKey("index")) {
@@ -163,6 +146,27 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             bulkSize = 100;
             bulkTimeout = TimeValue.timeValueMillis(10);
             ordered = false;
+        }
+        
+        if (settings.settings().containsKey("script_filter")) {
+            Map<String, Object> scriptSettings = (Map<String, Object>) settings.settings().get("script_filter");
+            if (scriptSettings.containsKey("script")) {
+                String scriptLang = "mvel";
+                if(scriptSettings.containsKey("script_lang")) {
+                    scriptLang = scriptSettings.get("script_lang").toString();
+                }
+                Map<String, Object> scriptParams = null;
+                if (scriptSettings.containsKey("script_params")) {
+                    scriptParams = (Map<String, Object>) scriptSettings.get("script_params");
+                } else {
+                    scriptParams = Maps.newHashMap();
+                }
+                script = scriptService.executable(scriptLang, scriptSettings.get("script").toString(), scriptParams);
+            } else {
+                script = null;
+            }
+        } else {
+          script = null;
         }
     }
 
@@ -362,12 +366,16 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
         }
         
         private void processBody(byte[] body, BulkRequestBuilder bulkRequestBuilder) throws Exception {
+            if (body == null) return;
+            
             if (script == null) {
                 bulkRequestBuilder.add(body, 0, body.length, false);
             } else {
-                script.setNextVar("body", body);
-                byte[] newBody = (byte[]) script.run();
-                if (newBody != null) {
+                String bodyStr = new String(body);
+                script.setNextVar("body", bodyStr);
+                String newBodyStr = (String) script.run();
+                if (newBodyStr != null) {
+                    byte[] newBody = newBodyStr.getBytes();
                     bulkRequestBuilder.add(newBody, 0, newBody.length, false);
                 }
             }
