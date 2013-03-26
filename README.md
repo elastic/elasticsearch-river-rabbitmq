@@ -85,18 +85,22 @@ RabbitMQ river can call scripts to modify or filter messages.
 
 To enable scripting use the following configuration options:
 
-		...
+	curl -XPUT 'localhost:9200/_river/my_river/_meta' -d '{
+        "type" : "rabbitmq",
 	    "rabbitmq" : {
-		...
-	        "script_filter" : {
-		        "script" : "myScript",
-		        "script_lang" : "native",
-		        "script_params" : {
-		            "param1" : "val1",
-		            "param2" : "val2"
-		        }
+	        ...
+	    },
+	    "index" : {
+	        ...
+	    },
+	    "script_filter" : {
+	        "script" : "myScript",
+		    "script_lang" : "native",
+		    "script_params" : {
+		        "param1" : "val1",
+	            "param2" : "val2"
+	            ...
 	        }
-		...
 	    }
 
 `script` is optional and is the name of the registered script in `elasticsearch.yml`.
