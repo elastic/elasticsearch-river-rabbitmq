@@ -52,10 +52,12 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final String rabbitVhost;
 
     private final String rabbitQueue;
+    private final String rabbitQueueDeclare;
     private final String rabbitExchange;
     private final String rabbitExchangeType;
     private final String rabbitRoutingKey;
     private final boolean rabbitExchangeDurable;
+    private final boolean rabbitExchangeDeclare;
     private final boolean rabbitQueueDurable;
     private final boolean rabbitQueueAutoDelete;
     private Map rabbitQueueArgs = null; //extra arguments passed to queue for creation (ha settings for example)
@@ -98,15 +100,27 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
             rabbitQueue = XContentMapValues.nodeStringValue(rabbitSettings.get("queue"), "elasticsearch");
             rabbitExchange = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange"), "elasticsearch");
-            rabbitExchangeType = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange_type"), "direct");
             rabbitRoutingKey = XContentMapValues.nodeStringValue(rabbitSettings.get("routing_key"), "elasticsearch");
-            rabbitExchangeDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("exchange_durable"), true);
-            rabbitQueueDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_durable"), true);
-            rabbitQueueAutoDelete = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_auto_delete"), false);
 
-            if (rabbitSettings.containsKey("args")) {
-                rabbitQueueArgs = (Map<String, Object>) rabbitSettings.get("args");
+            rabbitExchangeDeclare = XContentMapValues.nodeBooleanValue(rabbitSettings.get("exchange_declare"), true);
+            if (rabbitExchangeDeclare) {
+                
+                rabbitExchangeType = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange_type"), "direct");
+                rabbitExchangeDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("exchange_durable"), true);
             }
+
+            rabbitQueueDeclare = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_declare"), true);
+            if (rabbitQueueDeclare) {
+                rabbitQueueDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_durable"), true);
+                rabbitQueueAutoDelete = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_auto_delete"), false);
+                if (rabbitSettings.containsKey("args")) {
+                    rabbitQueueArgs = (Map<String, Object>) rabbitSettings.get("args");
+                }
+            }
+
+           
+            
+            
         } else {
             rabbitAddresses = new Address[]{ new Address("localhost", AMQP.PROTOCOL.PORT) };
             rabbitUser = "guest";
@@ -194,8 +208,14 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 // define the queue
                 try {
                     channel.exchangeDeclare(rabbitExchange/*exchange*/, rabbitExchangeType/*type*/, rabbitExchangeDurable);
-                    channel.queueDeclare(rabbitQueue/*queue*/, rabbitQueueDurable/*durable*/, false/*exclusive*/, rabbitQueueAutoDelete/*autoDelete*/, rabbitQueueArgs/*extra args*/);
-                    channel.queueBind(rabbitQueue/*queue*/, rabbitExchange/*exchange*/, rabbitRoutingKey/*routingKey*/);
+                    if (rabbitQueueDeclare) {
+                        // only declare the queue if we should
+                        channel.queueDeclare(rabbitQueue/*queue*/, rabbitQueueDurable/*durable*/, false/*exclusive*/, rabbitQueueAutoDelete/*autoDelete*/, rabbitQueueArgs/*extra args*/);
+                    }
+                    if (rabbitExchangeDeclare) {
+                        // only declare the exchange if we should
+                        channel.queueBind(rabbitQueue/*queue*/, rabbitExchange/*exchange*/, rabbitRoutingKey/*routingKey*/);
+                    }
                     channel.basicConsume(rabbitQueue/*queue*/, false/*noAck*/, consumer);
                 } catch (Exception e) {
                     if (!closed) {
