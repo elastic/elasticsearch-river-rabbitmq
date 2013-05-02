@@ -263,6 +263,12 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                 if (closed) {
                                     break;
                                 }
+                            } catch (Exception e) {
+                                if (!closed) {
+                                    logger.error("failed to get next bulk message, reconnecting...", e);
+                                }
+                                cleanup(0, "failed to get message");
+                                break;
                             }
                         }
 
