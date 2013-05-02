@@ -263,6 +263,14 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                 if (closed) {
                                     break;
                                 }
+                            } catch (ShutdownSignalException sse) {
+                                logger.warn("Received a shutdown signal! initiatedByApplication: [{}], hard error: [{}]", sse,
+                                        sse.isInitiatedByApplication(), sse.isHardError());
+                                if (!closed && sse.isInitiatedByApplication()) {
+                                    logger.error("failed to get next message, reconnecting...", sse);
+                                }
+                                cleanup(0, "failed to get message");
+                                break;
                             }
                         }
 
