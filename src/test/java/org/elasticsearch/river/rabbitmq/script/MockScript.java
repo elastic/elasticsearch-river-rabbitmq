@@ -1,6 +1,6 @@
 package org.elasticsearch.river.rabbitmq.script;
 
-import org.elasticsearch.common.jackson.core.JsonFactory;
+import org.elasticsearch.common.jackson.JsonFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import org.elasticsearch.script.AbstractExecutableScript;
 
@@ -50,7 +50,7 @@ public class MockScript extends AbstractExecutableScript {
   private void process(BufferedReader reader, BufferedWriter writer) throws IOException {
     JsonFactory factory = new JsonFactory();
     for (String line = reader.readLine(); line != null; line = reader.readLine()) {
-      JsonXContentParser parser = new JsonXContentParser(factory.createParser(line));
+      JsonXContentParser parser = new JsonXContentParser(factory.createJsonParser(line));
       Map<String, Object> asMap = parser.map();
       
       if (asMap.get("create") != null) {
