@@ -35,6 +35,7 @@ import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiverSettings;
 
 import java.io.IOException;
+import java.lang.Thread;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final boolean rabbitExchangeDurable;
     private final boolean rabbitQueueDurable;
     private final boolean rabbitQueueAutoDelete;
+    private int numPrefetch;
+    private int numConsumers;
     private Map rabbitQueueArgs = null; //extra arguments passed to queue for creation (ha settings for example)
 
     private final int bulkSize;
@@ -66,7 +69,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
     private volatile boolean closed = false;
 
-    private volatile Thread thread;
+    private Thread[] allConsumers;
 
     private volatile ConnectionFactory connectionFactory;
 
@@ -81,15 +84,15 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
             if (rabbitSettings.containsKey("addresses")) {
                 List<Address> addresses = new ArrayList<Address>();
-                for(Map<String, Object> address : (List<Map<String, Object>>) rabbitSettings.get("addresses")) {
-                    addresses.add( new Address(XContentMapValues.nodeStringValue(address.get("host"), "localhost"),
+                for (Map<String, Object> address : (List<Map<String, Object>>) rabbitSettings.get("addresses")) {
+                    addresses.add(new Address(XContentMapValues.nodeStringValue(address.get("host"), "localhost"),
                             XContentMapValues.nodeIntegerValue(address.get("port"), AMQP.PROTOCOL.PORT)));
                 }
                 rabbitAddresses = addresses.toArray(new Address[addresses.size()]);
             } else {
                 String rabbitHost = XContentMapValues.nodeStringValue(rabbitSettings.get("host"), "localhost");
                 int rabbitPort = XContentMapValues.nodeIntegerValue(rabbitSettings.get("port"), AMQP.PROTOCOL.PORT);
-                rabbitAddresses = new Address[]{ new Address(rabbitHost, rabbitPort) };
+                rabbitAddresses = new Address[]{new Address(rabbitHost, rabbitPort)};
             }
 
             rabbitUser = XContentMapValues.nodeStringValue(rabbitSettings.get("user"), "guest");
@@ -103,12 +106,14 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitExchangeDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("exchange_durable"), true);
             rabbitQueueDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_durable"), true);
             rabbitQueueAutoDelete = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_auto_delete"), false);
+            numPrefetch = XContentMapValues.nodeIntegerValue(rabbitSettings.get("num_prefetch"), 0);
+            numConsumers = XContentMapValues.nodeIntegerValue(rabbitSettings.get("num_consumers"), 1);
 
             if (rabbitSettings.containsKey("args")) {
                 rabbitQueueArgs = (Map<String, Object>) rabbitSettings.get("args");
             }
         } else {
-            rabbitAddresses = new Address[]{ new Address("localhost", AMQP.PROTOCOL.PORT) };
+            rabbitAddresses = new Address[]{new Address("localhost", AMQP.PROTOCOL.PORT)};
             rabbitUser = "guest";
             rabbitPassword = "guest";
             rabbitVhost = "/";
@@ -145,10 +150,14 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
         connectionFactory.setPassword(rabbitPassword);
         connectionFactory.setVirtualHost(rabbitVhost);
 
-        logger.info("creating rabbitmq river, addresses [{}], user [{}], vhost [{}]", rabbitAddresses, connectionFactory.getUsername(), connectionFactory.getVirtualHost());
+        logger.info("creating rabbitmq river, addresses [{}], user [{}], vhost [{}], with [{}] consumers]", rabbitAddresses, connectionFactory.getUsername(), connectionFactory.getVirtualHost(),numConsumers);
 
-        thread = EsExecutors.daemonThreadFactory(settings.globalSettings(), "rabbitmq_river").newThread(new Consumer());
-        thread.start();
+        allConsumers = new Thread[numConsumers];
+        for (int i=0; i< numConsumers;++i) {
+            Thread thread = EsExecutors.daemonThreadFactory(settings.globalSettings(), "rabbitmq_river").newThread(new Consumer());
+            thread.start();
+            allConsumers[i]=thread;
+        }
     }
 
     @Override
@@ -158,7 +167,9 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
         }
         logger.info("closing rabbitmq river");
         closed = true;
-        thread.interrupt();
+        for (Thread thread : allConsumers) {
+            thread.interrupt();
+        }
     }
 
     private class Consumer implements Runnable {
@@ -176,6 +187,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 try {
                     connection = connectionFactory.newConnection(rabbitAddresses);
                     channel = connection.createChannel();
+                    if (numPrefetch != 0) channel.basicQos(numPrefetch);
                 } catch (Exception e) {
                     if (!closed) {
                         logger.warn("failed to created a connection / channel", e);
