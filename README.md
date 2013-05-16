@@ -8,7 +8,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
     --------------------------------------------------------
     | RabbitMQ Plugin | ElasticSearch    | RabbitMQ Client |
     --------------------------------------------------------
-    | master          | 0.19 -> master   | 2.8.7           |
+    | master          | 0.19 -> master   | 3.1.0           |
     --------------------------------------------------------
     | 1.4.0           | 0.19 -> master   | 2.8.4           |
     --------------------------------------------------------
