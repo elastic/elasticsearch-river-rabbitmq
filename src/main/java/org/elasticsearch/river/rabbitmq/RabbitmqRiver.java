@@ -216,15 +216,15 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 QueueingConsumer consumer = new QueueingConsumer(channel);
                 // define the queue
                 try {
-                    channel.exchangeDeclare(rabbitExchange/*exchange*/, rabbitExchangeType/*type*/, rabbitExchangeDurable);
+                    if (rabbitExchangeDeclare) {
+                        // only declare the exchange if we should
+                        channel.exchangeDeclare(rabbitExchange/*exchange*/, rabbitExchangeType/*type*/, rabbitExchangeDurable);
+                    }
                     if (rabbitQueueDeclare) {
                         // only declare the queue if we should
                         channel.queueDeclare(rabbitQueue/*queue*/, rabbitQueueDurable/*durable*/, false/*exclusive*/, rabbitQueueAutoDelete/*autoDelete*/, rabbitQueueArgs/*extra args*/);
                     }
-                    if (rabbitExchangeDeclare) {
-                        // only declare the exchange if we should
-                        channel.queueBind(rabbitQueue/*queue*/, rabbitExchange/*exchange*/, rabbitRoutingKey/*routingKey*/);
-                    }
+                    channel.queueBind(rabbitQueue/*queue*/, rabbitExchange/*exchange*/, rabbitRoutingKey/*routingKey*/);
                     channel.basicConsume(rabbitQueue/*queue*/, false/*noAck*/, consumer);
                 } catch (Exception e) {
                     if (!closed) {
