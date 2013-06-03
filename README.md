@@ -51,6 +51,7 @@ curl -XPUT 'localhost:9200/_river/my_river/_meta' -d '{
         "exchange_type" : "direct",
         "exchange_durable" : true,
         "queue_declare" : true,
+        "queue_bind" : true,
         "queue_durable" : true,
         "queue_auto_delete" : false
     },
@@ -64,6 +65,7 @@ curl -XPUT 'localhost:9200/_river/my_river/_meta' -d '{
 
 You can disable exchange or queue declaration by setting `exchange_declare` or `queue_declare` to `false`
 (`true` by default).
+You can disable queue binding by setting `queue_bind` to `false` (`true` by default).
 
 Addresses(host-port pairs) also available. it is useful to taking advantage rabbitmq HA(active/active) without any rabbitmq load balancer.
 (http://www.rabbitmq.com/ha.html)

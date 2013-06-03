@@ -53,6 +53,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
     private final String rabbitQueue;
     private final boolean rabbitQueueDeclare;
+    private final boolean rabbitQueueBind;
     private final String rabbitExchange;
     private final String rabbitExchangeType;
     private final String rabbitRoutingKey;
@@ -123,6 +124,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 rabbitQueueDurable = true;
                 rabbitQueueAutoDelete = false;
             }
+            rabbitQueueBind = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_bind"), true);
 
            
             
@@ -143,6 +145,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
             rabbitExchangeDeclare = true;
             rabbitQueueDeclare = true;
+            rabbitQueueBind = true;
         }
 
         if (settings.settings().containsKey("index")) {
@@ -216,13 +219,16 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 QueueingConsumer consumer = new QueueingConsumer(channel);
                 // define the queue
                 try {
-                    channel.exchangeDeclare(rabbitExchange/*exchange*/, rabbitExchangeType/*type*/, rabbitExchangeDurable);
                     if (rabbitQueueDeclare) {
                         // only declare the queue if we should
                         channel.queueDeclare(rabbitQueue/*queue*/, rabbitQueueDurable/*durable*/, false/*exclusive*/, rabbitQueueAutoDelete/*autoDelete*/, rabbitQueueArgs/*extra args*/);
                     }
                     if (rabbitExchangeDeclare) {
                         // only declare the exchange if we should
+                        channel.exchangeDeclare(rabbitExchange/*exchange*/, rabbitExchangeType/*type*/, rabbitExchangeDurable);
+                    }
+                    if (rabbitQueueBind) {
+                        // only bind queue if we should
                         channel.queueBind(rabbitQueue/*queue*/, rabbitExchange/*exchange*/, rabbitRoutingKey/*routingKey*/);
                     }
                     channel.basicConsume(rabbitQueue/*queue*/, false/*noAck*/, consumer);
