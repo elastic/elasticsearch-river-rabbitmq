@@ -19,12 +19,19 @@
 
 package org.elasticsearch.river.rabbitmq;
 
-import com.rabbitmq.client.*;
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.Address;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.QueueingConsumer;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -33,6 +40,8 @@ import org.elasticsearch.river.AbstractRiverComponent;
 import org.elasticsearch.river.River;
 import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiverSettings;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,6 +76,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final TimeValue bulkTimeout;
     private final boolean ordered;
 
+    private final ExecutableScript script;
+    
     private volatile boolean closed = false;
 
     private volatile Thread thread;
@@ -75,7 +86,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
     @SuppressWarnings({"unchecked"})
     @Inject
-    public RabbitmqRiver(RiverName riverName, RiverSettings settings, Client client) {
+    public RabbitmqRiver(RiverName riverName, RiverSettings settings, Client client, ScriptService scriptService) {
         super(riverName, settings);
         this.client = client;
 
@@ -161,6 +172,27 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             bulkSize = 100;
             bulkTimeout = TimeValue.timeValueMillis(10);
             ordered = false;
+        }
+        
+        if (settings.settings().containsKey("script_filter")) {
+            Map<String, Object> scriptSettings = (Map<String, Object>) settings.settings().get("script_filter");
+            if (scriptSettings.containsKey("script")) {
+                String scriptLang = "mvel";
+                if(scriptSettings.containsKey("script_lang")) {
+                    scriptLang = scriptSettings.get("script_lang").toString();
+                }
+                Map<String, Object> scriptParams = null;
+                if (scriptSettings.containsKey("script_params")) {
+                    scriptParams = (Map<String, Object>) scriptSettings.get("script_params");
+                } else {
+                    scriptParams = Maps.newHashMap();
+                }
+                script = scriptService.executable(scriptLang, scriptSettings.get("script").toString(), scriptParams);
+            } else {
+                script = null;
+            }
+        } else {
+          script = null;
         }
     }
 
@@ -262,7 +294,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
 
                         try {
-                            bulkRequestBuilder.add(task.getBody(), 0, task.getBody().length, false);
+                            processBody(task.getBody(), bulkRequestBuilder);
                         } catch (Exception e) {
                             logger.warn("failed to parse request for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
                             try {
@@ -280,7 +312,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                             try {
                                 while ((task = consumer.nextDelivery(bulkTimeout.millis())) != null) {
                                     try {
-                                        bulkRequestBuilder.add(task.getBody(), 0, task.getBody().length, false);
+                                        processBody(task.getBody(), bulkRequestBuilder);
                                         deliveryTags.add(task.getEnvelope().getDeliveryTag());
                                     } catch (Exception e) {
                                         logger.warn("failed to parse request for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
@@ -315,10 +347,12 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
                         if (ordered) {
                             try {
-                                BulkResponse response = bulkRequestBuilder.execute().actionGet();
-                                if (response.hasFailures()) {
+                                if (bulkRequestBuilder.numberOfActions() > 0) {
+                                  BulkResponse response = bulkRequestBuilder.execute().actionGet();
+                                  if (response.hasFailures()) {
                                     // TODO write to exception queue?
                                     logger.warn("failed to execute" + response.buildFailureMessage());
+                                  }
                                 }
                                 for (Long deliveryTag : deliveryTags) {
                                     try {
@@ -331,27 +365,29 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                 logger.warn("failed to execute bulk", e);
                             }
                         } else {
-                            bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
-                                @Override
-                                public void onResponse(BulkResponse response) {
-                                    if (response.hasFailures()) {
-                                        // TODO write to exception queue?
-                                        logger.warn("failed to execute" + response.buildFailureMessage());
-                                    }
-                                    for (Long deliveryTag : deliveryTags) {
-                                        try {
-                                            channel.basicAck(deliveryTag, false);
-                                        } catch (Exception e1) {
-                                            logger.warn("failed to ack [{}]", e1, deliveryTag);
+                            if (bulkRequestBuilder.numberOfActions()>0) {
+                                bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
+                                    @Override
+                                    public void onResponse(BulkResponse response) {
+                                        if (response.hasFailures()) {
+                                          // TODO write to exception queue?
+                                          logger.warn("failed to execute" + response.buildFailureMessage());
+                                        }
+                                        for (Long deliveryTag : deliveryTags) {
+                                            try {
+                                                channel.basicAck(deliveryTag, false);
+                                            } catch (Exception e1) {
+                                                logger.warn("failed to ack [{}]", e1, deliveryTag);
+                                            }
                                         }
                                     }
-                                }
-
-                                @Override
-                                public void onFailure(Throwable e) {
-                                    logger.warn("failed to execute bulk for delivery tags [{}], not ack'ing", e, deliveryTags);
-                                }
-                            });
+                                    
+                                    @Override
+                                    public void onFailure(Throwable e) {
+                                        logger.warn("failed to execute bulk for delivery tags [{}], not ack'ing", e, deliveryTags);
+                                    }
+                                });
+                            }
                         }
                     }
                 }
@@ -369,6 +405,22 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 connection.close(code, message);
             } catch (Exception e) {
                 logger.debug("failed to close connection on [{}]", e, message);
+            }
+        }
+        
+        private void processBody(byte[] body, BulkRequestBuilder bulkRequestBuilder) throws Exception {
+            if (body == null) return;
+            
+            if (script == null) {
+                bulkRequestBuilder.add(body, 0, body.length, false);
+            } else {
+                String bodyStr = new String(body);
+                script.setNextVar("body", bodyStr);
+                String newBodyStr = (String) script.run();
+                if (newBodyStr != null) {
+                    byte[] newBody = newBodyStr.getBytes();
+                    bulkRequestBuilder.add(newBody, 0, newBody.length, false);
+                }
             }
         }
     }

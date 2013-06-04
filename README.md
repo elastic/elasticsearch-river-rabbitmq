@@ -93,6 +93,42 @@ Addresses(host-port pairs) also available. it is useful to taking advantage rabb
 
 The river is automatically bulking queue messages if the queue is overloaded, allowing for faster catchup with the messages streamed into the queue. The `ordered` flag allows to make sure that the messages will be indexed in the same order as they arrive in the query by blocking on the bulk request before picking up the next data to be indexed. It can also be used as a simple way to throttle indexing.
 
+Scripting
+---------
+
+RabbitMQ river can call scripts to modify or filter messages.
+
+To enable scripting use the following configuration options:
+
+    curl -XPUT 'localhost:9200/_river/my_river/_meta' -d '{
+        "type" : "rabbitmq",
+        "rabbitmq" : {
+            ...
+        },
+        "index" : {
+            ...
+        },
+        "script_filter" : {
+            "script" : "myScript",
+            "script_lang" : "native",
+            "script_params" : {
+                "param1" : "val1",
+                "param2" : "val2"
+                ...
+            }
+        }
+
+`script` is optional and is the name of the registered script in `elasticsearch.yml`.
+`script_lang` is by default `mvel`.
+`script_params` are optional configuration arguments for the script.
+
+The script will receive a variable called `body` which contains a String representation of RabbitMQ's message body.
+That `body` can be modified by the script, and it must return the new body as a String as well.
+If the returned body is null, that message will be skipped from the indexing flow.
+
+For more information see http://www.elasticsearch.org/guide/reference/modules/scripting.html
+
+
 License
 -------
 
