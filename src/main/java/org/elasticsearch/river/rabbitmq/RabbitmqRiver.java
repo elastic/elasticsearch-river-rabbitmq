@@ -335,7 +335,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                     try {
                                         processBody(task.getBody(), bulkRequestBuilder);
                                         deliveryTags.add(task.getEnvelope().getDeliveryTag());
-                                    } catch (Exception e) {
+                                    } catch (Throwable e) {
                                         logger.warn("failed to parse request for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
                                         try {
                                             channel.basicAck(task.getEnvelope().getDeliveryTag(), false);
