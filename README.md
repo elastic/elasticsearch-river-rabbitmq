@@ -98,7 +98,9 @@ Scripting
 
 RabbitMQ river can call scripts to modify or filter messages.
 
-To enable scripting use the following configuration options:
+### Full bulk scripting
+
+To enable bulk scripting use the following configuration options:
 
 ```sh
 curl -XPUT 'localhost:9200/_river/my_river/_meta' -d '{
@@ -133,6 +135,39 @@ If the returned body is null, that message will be skipped from the indexing flo
 
 For more information see [Scripting module](http://www.elasticsearch.org/guide/reference/modules/scripting/)
 
+### Doc per doc scripting
+
+You may also want to apply scripts document per document. It will only works for index or create operations.
+
+To enable scripting use the following configuration options:
+
+```sh
+curl -XPUT 'localhost:9200/_river/my_river/_meta' -d '{
+    "type" : "rabbitmq",
+    "rabbitmq" : {
+        ...
+    },
+    "index" : {
+        ...
+    },
+    "script_filter" : {
+        "script" : "ctx.type1.field1 += param1",
+        "script_lang" : "mvel",
+        "script_params" : {
+          "param1" : 1
+        }
+    }
+}'
+```
+
+* `script` is your javascript code if you use `mvel` scripts.
+* `script_lang` is by default `mvel`.
+* `script_params` are optional configuration arguments for the script.
+
+The script will receive a variable called `ctx` which contains a String representation of the current document
+meant to be indexed or created.
+
+For more information see [Scripting module](http://www.elasticsearch.org/guide/reference/modules/scripting/)
 
 License
 -------

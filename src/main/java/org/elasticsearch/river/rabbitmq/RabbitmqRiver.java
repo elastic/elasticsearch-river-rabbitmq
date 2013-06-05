@@ -27,8 +27,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.jackson.core.JsonFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.river.AbstractRiverComponent;
 import org.elasticsearch.river.River;
@@ -37,7 +41,7 @@ import org.elasticsearch.river.RiverSettings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +75,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final boolean ordered;
 
     private final ExecutableScript bulkScript;
-    
+    private final ExecutableScript script;
+
     private volatile boolean closed = false;
 
     private volatile Thread thread;
@@ -188,6 +193,28 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
         } else {
           bulkScript = null;
         }
+
+        if (settings.settings().containsKey("script_filter")) {
+            Map<String, Object> scriptSettings = (Map<String, Object>) settings.settings().get("script_filter");
+            if (scriptSettings.containsKey("script")) {
+                String scriptLang = "mvel";
+                if(scriptSettings.containsKey("script_lang")) {
+                    scriptLang = scriptSettings.get("script_lang").toString();
+                }
+                Map<String, Object> scriptParams = null;
+                if (scriptSettings.containsKey("script_params")) {
+                    scriptParams = (Map<String, Object>) scriptSettings.get("script_params");
+                } else {
+                    scriptParams = Maps.newHashMap();
+                }
+                script = scriptService.executable(scriptLang, scriptSettings.get("script").toString(), scriptParams);
+            } else {
+                script = null;
+            }
+        } else {
+            script = null;
+        }
+
     }
 
     @Override
@@ -406,7 +433,12 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             if (body == null) return;
             
             if (bulkScript == null) {
-                bulkRequestBuilder.add(body, 0, body.length, false);
+                if (script == null) {
+                    bulkRequestBuilder.add(body, 0, body.length, false);
+                } else {
+                    // #26: add support for doc by doc scripting
+                    processBodyPerLine(body, bulkRequestBuilder);
+                }
             } else {
                 String bodyStr = new String(body);
                 bulkScript.setNextVar("body", bodyStr);
@@ -414,6 +446,50 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 if (newBodyStr != null) {
                     byte[] newBody = newBodyStr.getBytes();
                     bulkRequestBuilder.add(newBody, 0, newBody.length, false);
+                }
+            }
+        }
+
+        private void processBodyPerLine(byte[] body, BulkRequestBuilder bulkRequestBuilder) throws Exception {
+            BufferedReader reader = new BufferedReader(new StringReader(new String(body)));
+
+            JsonFactory factory = new JsonFactory();
+            for (String line = reader.readLine(); line != null; line = reader.readLine()) {
+                JsonXContentParser parser = new JsonXContentParser(factory.createJsonParser(line));
+                Map<String, Object> asMap = parser.map();
+
+                if (asMap.get("delete") != null) {
+                    // We don't touch deleteRequests
+                    String newContent = line + "\n";
+                    bulkRequestBuilder.add(newContent.getBytes(), 0, newContent.getBytes().length, false);
+                } else {
+                    // But we send other requests to the script Engine in ctx field
+                    Map<String, Object> ctx;
+                    String payload = null;
+                    try {
+                        payload = reader.readLine();
+                        ctx = XContentFactory.xContent(XContentType.JSON).createParser(payload).mapAndClose();
+                    } catch (IOException e) {
+                        logger.warn("failed to parse {}", e, payload);
+                        continue;
+                    }
+                    script.setNextVar("ctx", ctx);
+                    script.run();
+                    ctx = (Map<String, Object>) script.unwrap(ctx);
+                    if (ctx != null) {
+                        // Adding header
+                        StringBuffer request = new StringBuffer(line);
+                        request.append("\n");
+                        // Adding new payload
+                        request.append(XContentFactory.jsonBuilder().map(ctx).string());
+                        request.append("\n");
+
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("new bulk request is now: {}", request.toString());
+                        }
+                        byte[] binRequest = request.toString().getBytes();
+                        bulkRequestBuilder.add(binRequest, 0, binRequest.length, false);
+                    }
                 }
             }
         }
