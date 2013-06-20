@@ -51,7 +51,7 @@ public class RabbitMQRiverScriptTest {
               .startObject("bulk_script_filter")
                 .field("script", "mock_script")
                 .field("script_lang", "native")
-            .endObject()).execute().actionGet();
+            .endObject().endObject()).execute().actionGet();
 
         ConnectionFactory cfconn = new ConnectionFactory();
         cfconn.setHost("localhost");

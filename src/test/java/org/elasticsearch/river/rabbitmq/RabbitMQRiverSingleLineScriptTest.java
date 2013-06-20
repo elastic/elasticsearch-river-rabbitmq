@@ -45,12 +45,13 @@ public class RabbitMQRiverSingleLineScriptTest {
 
         node.client().prepareIndex("_river", "test1", "_meta").setSource(
             jsonBuilder().startObject()
-              .field("type", "rabbitmq")
-              .startObject("script_filter")
-                .field("script", "ctx.type1.field1 += param1")
-                .field("script_lang", "mvel")
-                .startObject("script_params")
-                    .field("param1", 1)
+                  .field("type", "rabbitmq")
+                  .startObject("script_filter")
+                    .field("script", "ctx.type1.field1 += param1")
+                    .field("script_lang", "mvel")
+                    .startObject("script_params")
+                        .field("param1", 1)
+                    .endObject()
                 .endObject()
             .endObject()).execute().actionGet();
 
