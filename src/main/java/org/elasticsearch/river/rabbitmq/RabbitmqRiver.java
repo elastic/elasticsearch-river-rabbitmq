@@ -428,25 +428,24 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 logger.debug("failed to close connection on [{}]", e, message);
             }
         }
-        
+
         private void processBody(byte[] body, BulkRequestBuilder bulkRequestBuilder) throws Exception {
             if (body == null) return;
-            
-            if (bulkScript == null) {
-                if (script == null) {
-                    bulkRequestBuilder.add(body, 0, body.length, false);
-                } else {
-                    // #26: add support for doc by doc scripting
-                    processBodyPerLine(body, bulkRequestBuilder);
-                }
-            } else {
+
+            // first, the "full bulk" script
+            if (bulkScript != null) {
                 String bodyStr = new String(body);
                 bulkScript.setNextVar("body", bodyStr);
                 String newBodyStr = (String) bulkScript.run();
-                if (newBodyStr != null) {
-                    byte[] newBody = newBodyStr.getBytes();
-                    bulkRequestBuilder.add(newBody, 0, newBody.length, false);
-                }
+                if (newBodyStr == null) return ;
+                body =  newBodyStr.getBytes();
+            }
+
+            // second, the "doc per doc" script
+            if (script != null) {
+                processBodyPerLine(body, bulkRequestBuilder);
+            } else {
+                bulkRequestBuilder.add(body, 0, body.length, false);
             }
         }
 
