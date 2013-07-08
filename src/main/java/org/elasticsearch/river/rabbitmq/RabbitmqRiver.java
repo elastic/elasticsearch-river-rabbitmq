@@ -69,6 +69,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final boolean rabbitQueueDurable;
     private final boolean rabbitQueueAutoDelete;
     private Map rabbitQueueArgs = null; //extra arguments passed to queue for creation (ha settings for example)
+    private final TimeValue rabbitHeartbeat;
 
     private final int bulkSize;
     private final TimeValue bulkTimeout;
@@ -136,9 +137,9 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             }
             rabbitQueueBind = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_bind"), true);
 
-           
-            
-            
+            rabbitHeartbeat = TimeValue.parseTimeValue(XContentMapValues.nodeStringValue(
+                    rabbitSettings.get("heartbeat"), "30m"), TimeValue.timeValueMinutes(30));
+
         } else {
             rabbitAddresses = new Address[]{ new Address("localhost", AMQP.PROTOCOL.PORT) };
             rabbitUser = "guest";
@@ -156,6 +157,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitExchangeDeclare = true;
             rabbitQueueDeclare = true;
             rabbitQueueBind = true;
+
+            rabbitHeartbeat = TimeValue.timeValueMinutes(30);
         }
 
         if (settings.settings().containsKey("index")) {
@@ -223,6 +226,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
         connectionFactory.setUsername(rabbitUser);
         connectionFactory.setPassword(rabbitPassword);
         connectionFactory.setVirtualHost(rabbitVhost);
+        connectionFactory.setRequestedHeartbeat(new Long(rabbitHeartbeat.getSeconds()).intValue());
 
         logger.info("creating rabbitmq river, addresses [{}], user [{}], vhost [{}]", rabbitAddresses, connectionFactory.getUsername(), connectionFactory.getVirtualHost());
 
