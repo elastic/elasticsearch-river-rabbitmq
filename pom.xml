@@ -30,7 +30,7 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>0.90.1</elasticsearch.version>
+        <elasticsearch.version>0.90.2</elasticsearch.version>
         <amqp-client.version>3.1.1</amqp-client.version>
     </properties>
 
