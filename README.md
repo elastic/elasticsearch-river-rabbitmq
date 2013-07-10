@@ -39,7 +39,7 @@ RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.co
 
 Special Commands
 ----------------
-Since 1.5.0 RabbitMQ River also supports special commands that are not covered in the bulk API.
+Since 1.7.0 RabbitMQ River also supports special commands that are not covered in the bulk API.
 Supported commands for now are put mapping and delete by query.
 To send a custom command you need to add a special header to the RabbitMQ message: 
 	
