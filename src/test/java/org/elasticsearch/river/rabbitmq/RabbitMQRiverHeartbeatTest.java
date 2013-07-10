@@ -32,13 +32,19 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 /**
  *
  */
-public class RabbitMQRiverTest {
+public class RabbitMQRiverHeartbeatTest {
 
     public static void main(String[] args) throws Exception {
 
         Node node = NodeBuilder.nodeBuilder().settings(ImmutableSettings.settingsBuilder().put("gateway.type", "none")).node();
 
-        node.client().prepareIndex("_river", "test1", "_meta").setSource(jsonBuilder().startObject().field("type", "rabbitmq").endObject()).execute().actionGet();
+        node.client().prepareIndex("_river", "test1", "_meta").setSource(
+                jsonBuilder().startObject()
+                    .field("type", "rabbitmq")
+                    .startObject("rabbitmq")
+                        .field("heartbeat", "1s")
+                    .endObject()
+                .endObject()).execute().actionGet();
 
         ConnectionFactory cfconn = new ConnectionFactory();
         cfconn.setHost("localhost");
