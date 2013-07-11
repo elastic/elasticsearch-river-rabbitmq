@@ -19,42 +19,20 @@
 
 package org.elasticsearch.river.rabbitmq;
 
-import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  *
  */
-public class RabbitMQRiverHeartbeatTest {
+public class RabbitMQRiverHeartbeatTest extends RabbitMQTestRunner {
 
-    public static void main(String[] args) throws Exception {
-
-        Node node = NodeBuilder.nodeBuilder().settings(ImmutableSettings.settingsBuilder().put("gateway.type", "none")).node();
-
-        node.client().prepareIndex("_river", "test1", "_meta").setSource(
-                jsonBuilder().startObject()
-                    .field("type", "rabbitmq")
-                    .startObject("rabbitmq")
-                        .field("heartbeat", "1s")
-                    .endObject()
-                .endObject()).execute().actionGet();
-
-        ConnectionFactory cfconn = new ConnectionFactory();
-        cfconn.setHost("localhost");
-        cfconn.setPort(AMQP.PROTOCOL.PORT);
-        Connection conn = cfconn.newConnection();
-
-        Channel ch = conn.createChannel();
-        ch.exchangeDeclare("elasticsearch", "direct", true);
-        ch.queueDeclare("elasticsearch", true, false, false, null);
-
+    @Override
+    protected void pushMessages(Channel ch) throws IOException {
         String message = "{ \"index\" : { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"1\" } }\n" +
                 "{ \"type1\" : { \"field1\" : \"value1\" } }\n" +
                 "{ \"delete\" : { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"2\" } }\n" +
@@ -62,10 +40,21 @@ public class RabbitMQRiverHeartbeatTest {
                 "{ \"type1\" : { \"field1\" : \"value1\" } }";
 
         ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
+    }
 
-        ch.close();
-        conn.close();
+    @Override
+    protected XContentBuilder river() throws IOException {
+        return jsonBuilder()
+                .startObject()
+                    .field("type", "rabbitmq")
+                    .startObject("rabbitmq")
+                        .field("heartbeat", "1s")
+                    .endObject()
+                .endObject();
+    }
 
-        Thread.sleep(100000);
+    @Override
+    protected long expectedDocuments() {
+        return 1;
     }
 }

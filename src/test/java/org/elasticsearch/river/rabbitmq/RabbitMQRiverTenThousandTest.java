@@ -29,26 +29,28 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 /**
  *
  */
-public class RabbitMQRiverTest extends RabbitMQTestRunner {
+public class RabbitMQRiverTenThousandTest extends RabbitMQTestRunner {
 
     @Override
     protected void pushMessages(Channel ch) throws IOException {
-        String message = "{ \"index\" : { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"1\" } }\n" +
-                "{ \"type1\" : { \"field1\" : \"value1\" } }\n" +
-                "{ \"delete\" : { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"2\" } }\n" +
-                "{ \"create\" : { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"1\" }\n" +
-                "{ \"type1\" : { \"field1\" : \"value1\" } }";
-
-        ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
+        pushMessages(ch, 10, 1000);
     }
 
     @Override
     protected XContentBuilder river() throws IOException {
-        return jsonBuilder().startObject().field("type", "rabbitmq").endObject();
+        return jsonBuilder().startObject()
+                    .field("type", "rabbitmq")
+                    .startObject("rabbitmq")
+                        .field("num_consumers", 5)
+                    .endObject()
+                    .startObject("index")
+                        .field("flush_interval", "1s")
+                    .endObject()
+                .endObject();
     }
 
     @Override
     protected long expectedDocuments() {
-        return 1;
+        return 10000;
     }
 }

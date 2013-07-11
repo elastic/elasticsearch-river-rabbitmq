@@ -19,70 +19,81 @@
 
 package org.elasticsearch.river.rabbitmq;
 
-import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.river.rabbitmq.script.MockScriptFactory;
+import org.junit.Assert;
+
+import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  *
  */
-public class RabbitMQRiverBothScriptTest {
+public class RabbitMQRiverBothScriptTest extends RabbitMQTestRunner {
 
-    public static void main(String[] args) throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder()
-            .put("gateway.type", "none")
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("script.native.mock_script.type", MockScriptFactory.class)
-            .build();
-        Node node = NodeBuilder.nodeBuilder().settings(settings).node();
-
-        node.client().prepareIndex("_river", "test1", "_meta").setSource(
-                jsonBuilder().startObject()
-                  .field("type", "rabbitmq")
-                  .startObject("script_filter")
-                    .field("script", "ctx.type1.field1 += param1")
-                    .field("script_lang", "mvel")
-                    .startObject("script_params")
-                        .field("param1", 1)
-                    .endObject()
-                .endObject()
-                .startObject("bulk_script_filter")
-                    .field("script", "mock_script")
-                    .field("script_lang", "native")
-                .endObject()
-            .endObject()).execute().actionGet();
-
-        ConnectionFactory cfconn = new ConnectionFactory();
-        cfconn.setHost("localhost");
-        cfconn.setPort(AMQP.PROTOCOL.PORT);
-        Connection conn = cfconn.newConnection();
-
-        Channel ch = conn.createChannel();
-        ch.exchangeDeclare("elasticsearch", "direct", true);
-        ch.queueDeclare("elasticsearch", true, false, false, null);
-
+    @Override
+    protected void pushMessages(Channel ch) throws IOException {
         String message =
                 "{ \"index\" :  { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"1\" } }\n" +
-                "{ \"type1\" :  { \"field1\" : 1 } }\n" +
-                "{ \"delete\" : { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"2\" } }\n" +
-                "{ \"create\" : { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"3\" } }\n" +
-                "{ \"type1\" :  { \"field1\" : 2 } }" +
-                "";
+                        "{ \"type1\" :  { \"field1\" : 1 } }\n" +
+                        "{ \"delete\" : { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"2\" } }\n" +
+                        "{ \"create\" : { \"_index\" : \"test\", \"_type\" : \"type1\", \"_id\" : \"3\" } }\n" +
+                        "{ \"type1\" :  { \"field1\" : 2 } }" +
+                        "";
 
         ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
+    }
 
-        ch.close();
-        conn.close();
+    @Override
+    protected XContentBuilder river() throws IOException {
+        return  jsonBuilder()
+                .startObject()
+                    .field("type", "rabbitmq")
+                    .startObject("script_filter")
+                        .field("script", "ctx.type1.field1 += param1")
+                        .field("script_lang", "mvel")
+                        .startObject("script_params")
+                            .field("param1", 1)
+                        .endObject()
+                    .endObject()
+                    .startObject("bulk_script_filter")
+                        .field("script", "mock_script")
+                        .field("script_lang", "native")
+                    .endObject()
+                .endObject();
+    }
 
-        Thread.sleep(10000);
+    @Override
+    protected long expectedDocuments() {
+        return 1;
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return ImmutableSettings.settingsBuilder().put("script.native.mock_script.type", MockScriptFactory.class).build();
+    }
+
+    @Override
+    protected void postInjectionTests(Node node) {
+        super.postInjectionTests(node);
+
+        // Doc 1 should exist
+        GetResponse getResponse = node.client().prepareGet("test", "type1", "1").execute().actionGet();
+        Assert.assertNotNull(getResponse);
+        Assert.assertTrue(getResponse.isExists());
+        Assert.assertNotNull(getResponse.getSourceAsMap());
+        Assert.assertEquals(2, XContentMapValues.extractValue("type1.field1", getResponse.getSourceAsMap()));
+
+        // Doc 3 should not exist
+        getResponse = node.client().prepareGet("test", "type1", "3").execute().actionGet();
+        Assert.assertNotNull(getResponse);
+        Assert.assertFalse(getResponse.isExists());
     }
 }
