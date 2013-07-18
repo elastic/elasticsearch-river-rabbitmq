@@ -19,7 +19,11 @@
 
 package org.elasticsearch.river.rabbitmq;
 
-import com.rabbitmq.client.*;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -34,10 +38,13 @@ import org.elasticsearch.river.River;
 import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiverSettings;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.Address;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.MessageProperties;
+import com.rabbitmq.client.QueueingConsumer;
 
 /**
  *
@@ -55,6 +62,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final String rabbitExchange;
     private final String rabbitExchangeType;
     private final String rabbitRoutingKey;
+    //See http://www.enterpriseintegrationpatterns.com/InvalidMessageChannel.html for more info
+    private final String rabbitInvalidMessageChannelExchange;
     private final boolean rabbitExchangeDurable;
     private final boolean rabbitQueueDurable;
     private final boolean rabbitQueueAutoDelete;
@@ -99,6 +108,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitQueue = XContentMapValues.nodeStringValue(rabbitSettings.get("queue"), "elasticsearch");
             rabbitExchange = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange"), "elasticsearch");
             rabbitExchangeType = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange_type"), "direct");
+            //See http://www.enterpriseintegrationpatterns.com/InvalidMessageChannel.html for more info
+            rabbitInvalidMessageChannelExchange = XContentMapValues.nodeStringValue(rabbitSettings.get("invalid_message_exchange"), null);
             rabbitRoutingKey = XContentMapValues.nodeStringValue(rabbitSettings.get("routing_key"), "elasticsearch");
             rabbitExchangeDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("exchange_durable"), true);
             rabbitQueueDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_durable"), true);
@@ -118,6 +129,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitQueueDurable = true;
             rabbitExchange = "elasticsearch";
             rabbitExchangeType = "direct";
+            rabbitInvalidMessageChannelExchange = null;
             rabbitExchangeDurable = true;
             rabbitRoutingKey = "elasticsearch";
         }
@@ -223,13 +235,15 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
                     if (task != null && task.getBody() != null) {
                         final List<Long> deliveryTags = Lists.newArrayList();
-
+                        final List<byte[]> bodies =  Lists.newArrayList();
                         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
 
                         try {
+                            bodies.add(task.getBody());
                             bulkRequestBuilder.add(task.getBody(), 0, task.getBody().length, false);
                         } catch (Exception e) {
                             logger.warn("failed to parse request for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
+                            queueInvalidMessages(e.getMessage(), bodies);
                             try {
                                 channel.basicAck(task.getEnvelope().getDeliveryTag(), false);
                             } catch (IOException e1) {
@@ -249,6 +263,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                         deliveryTags.add(task.getEnvelope().getDeliveryTag());
                                     } catch (Exception e) {
                                         logger.warn("failed to parse request for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
+                                        queueInvalidMessages(e.getMessage(), bodies);
                                         try {
                                             channel.basicAck(task.getEnvelope().getDeliveryTag(), false);
                                         } catch (Exception e1) {
@@ -274,7 +289,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                             try {
                                 BulkResponse response = bulkRequestBuilder.execute().actionGet();
                                 if (response.hasFailures()) {
-                                    // TODO write to exception queue?
+                                    queueInvalidMessages(response.buildFailureMessage(), bodies);
                                     logger.warn("failed to execute" + response.buildFailureMessage());
                                 }
                                 for (Long deliveryTag : deliveryTags) {
@@ -292,9 +307,14 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                 @Override
                                 public void onResponse(BulkResponse response) {
                                     if (response.hasFailures()) {
-                                        // TODO write to exception queue?
+                                        queueInvalidMessages(response.buildFailureMessage(), bodies);
                                         logger.warn("failed to execute" + response.buildFailureMessage());
                                     }
+                                    ackAll();
+                                }
+
+                                /** Ack all messages */
+                                private void ackAll() {
                                     for (Long deliveryTag : deliveryTags) {
                                         try {
                                             channel.basicAck(deliveryTag, false);
@@ -306,7 +326,14 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
                                 @Override
                                 public void onFailure(Throwable e) {
-                                    logger.warn("failed to execute bulk for delivery tags [{}], not ack'ing", e, deliveryTags);
+                                    if (rabbitInvalidMessageChannelExchange == null) {
+                                        logger.warn("failed to execute bulk for delivery tags [{}], not ack'ing", e, deliveryTags);
+                                    } else {
+                                        logger.warn("failed to execute bulk for delivery tags [{}], ack'ing and delivering it to {}",
+                                                e, deliveryTags, rabbitInvalidMessageChannelExchange);
+                                        ackAll();
+                                        queueInvalidMessages(e.getMessage(), bodies);
+                                    }
                                 }
                             });
                         }
@@ -316,6 +343,25 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             cleanup(0, "closing river");
         }
 
+        private void queueInvalidMessages(final String message, final List<byte[]> bodies) {
+            logger.info("Queuing {} invalid messages....", bodies.size());
+            for (byte[] body : bodies) {
+                try {
+                    channel.basicPublish(rabbitInvalidMessageChannelExchange,
+                            "",
+                            MessageProperties.PERSISTENT_TEXT_PLAIN,
+                            new String(
+                                    new String(body)
+                                    + "\n"
+                                    + message
+                                    + "\n").getBytes("utf-8"));
+                } catch (IOException e1) {
+                    logger.error("Could not publish in the invalid message channel {}",
+                            "#message: " + new String(body) + " #error:" + e1.getMessage(),
+                            e1);
+                }
+            }
+        }
         private void cleanup(int code, String message) {
             try {
                 channel.close(code, message);
