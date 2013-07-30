@@ -69,6 +69,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final boolean rabbitQueueAutoDelete;
     private Map rabbitQueueArgs = null; //extra arguments passed to queue for creation (ha settings for example)
 
+    private final int prefetchCount;
+    
     private final int bulkSize;
     private final TimeValue bulkTimeout;
     private final boolean ordered;
@@ -114,7 +116,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitExchangeDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("exchange_durable"), true);
             rabbitQueueDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_durable"), true);
             rabbitQueueAutoDelete = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_auto_delete"), false);
-
+            prefetchCount = XContentMapValues.nodeIntegerValue(rabbitSettings.get("prefetch_count"), 100);
             if (rabbitSettings.containsKey("args")) {
                 rabbitQueueArgs = (Map<String, Object>) rabbitSettings.get("args");
             }
@@ -132,6 +134,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitInvalidMessageChannelExchange = null;
             rabbitExchangeDurable = true;
             rabbitRoutingKey = "elasticsearch";
+            prefetchCount = 100;
         }
 
         if (settings.settings().containsKey("index")) {
@@ -188,6 +191,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 try {
                     connection = connectionFactory.newConnection(rabbitAddresses);
                     channel = connection.createChannel();
+                    channel.basicQos(prefetchCount);
                 } catch (Exception e) {
                     if (!closed) {
                         logger.warn("failed to created a connection / channel", e);
