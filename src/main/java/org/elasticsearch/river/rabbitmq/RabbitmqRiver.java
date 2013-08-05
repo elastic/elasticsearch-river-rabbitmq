@@ -265,6 +265,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                             try {
                                 while ((task = consumer.nextDelivery(bulkTimeout.millis())) != null) {
                                     try {
+                                        bodies.add(task.getBody());
                                         bulkRequestBuilder.add(task.getBody(), 0, task.getBody().length, false);
                                         deliveryTags.add(task.getEnvelope().getDeliveryTag());
                                     } catch (Exception e) {
