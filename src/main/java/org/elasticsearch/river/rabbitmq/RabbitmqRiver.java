@@ -63,7 +63,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final String rabbitExchangeType;
     private final String rabbitRoutingKey;
     //See http://www.enterpriseintegrationpatterns.com/InvalidMessageChannel.html for more info
-    private final String rabbitInvalidMessageChannelExchange;
+    private final String rabbitInvalidMessageChannelQueue;
     private final boolean rabbitExchangeDurable;
     private final boolean rabbitQueueDurable;
     private final boolean rabbitQueueAutoDelete;
@@ -111,7 +111,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitExchange = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange"), "elasticsearch");
             rabbitExchangeType = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange_type"), "direct");
             //See http://www.enterpriseintegrationpatterns.com/InvalidMessageChannel.html for more info
-            rabbitInvalidMessageChannelExchange = XContentMapValues.nodeStringValue(rabbitSettings.get("invalid_message_exchange"), null);
+            rabbitInvalidMessageChannelQueue = XContentMapValues.nodeStringValue(rabbitSettings.get("invalid_message_queue"), null);
             rabbitRoutingKey = XContentMapValues.nodeStringValue(rabbitSettings.get("routing_key"), "elasticsearch");
             rabbitExchangeDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("exchange_durable"), true);
             rabbitQueueDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_durable"), true);
@@ -131,7 +131,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitQueueDurable = true;
             rabbitExchange = "elasticsearch";
             rabbitExchangeType = "direct";
-            rabbitInvalidMessageChannelExchange = null;
+            rabbitInvalidMessageChannelQueue = null;
             rabbitExchangeDurable = true;
             rabbitRoutingKey = "elasticsearch";
             prefetchCount = 100;
@@ -212,6 +212,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                     channel.exchangeDeclare(rabbitExchange/*exchange*/, rabbitExchangeType/*type*/, rabbitExchangeDurable);
                     channel.queueDeclare(rabbitQueue/*queue*/, rabbitQueueDurable/*durable*/, false/*exclusive*/, rabbitQueueAutoDelete/*autoDelete*/, rabbitQueueArgs/*extra args*/);
                     channel.queueBind(rabbitQueue/*queue*/, rabbitExchange/*exchange*/, rabbitRoutingKey/*routingKey*/);
+                    channel.queueDeclare(rabbitInvalidMessageChannelQueue/*queue*/, rabbitQueueDurable/*durable*/, false/*exclusive*/, rabbitQueueAutoDelete/*autoDelete*/, rabbitQueueArgs/*extra args*/);
+                    channel.queueBind(rabbitInvalidMessageChannelQueue/*queue*/, rabbitExchange/*exchange*/, rabbitInvalidMessageChannelQueue/*routingKey*/);
                     channel.basicConsume(rabbitQueue/*queue*/, false/*noAck*/, consumer);
                 } catch (Exception e) {
                     if (!closed) {
@@ -330,11 +332,11 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
                                 @Override
                                 public void onFailure(Throwable e) {
-                                    if (rabbitInvalidMessageChannelExchange == null) {
+                                    if (rabbitInvalidMessageChannelQueue == null) {
                                         logger.warn("failed to execute bulk for delivery tags [{}], not ack'ing", e, deliveryTags);
                                     } else {
                                         logger.warn("failed to execute bulk for delivery tags [{}], ack'ing and delivering it to {}",
-                                                e, deliveryTags, rabbitInvalidMessageChannelExchange);
+                                                e, deliveryTags, rabbitInvalidMessageChannelQueue);
                                         ackAll();
                                         queueInvalidMessages(e.getMessage(), bodies);
                                     }
@@ -351,14 +353,10 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             logger.info("Queuing {} invalid messages....", bodies.size());
             for (byte[] body : bodies) {
                 try {
-                    channel.basicPublish(rabbitInvalidMessageChannelExchange,
-                            "",
+                    channel.basicPublish(rabbitExchange,
+			    rabbitInvalidMessageChannelQueue,
                             MessageProperties.PERSISTENT_TEXT_PLAIN,
-                            new String(
-                                    new String(body)
-                                    + "\n"
-                                    + message
-                                    + "\n").getBytes("utf-8"));
+                            body);
                 } catch (IOException e1) {
                     logger.error("Could not publish in the invalid message channel {}",
                             "#message: " + new String(body) + " #error:" + e1.getMessage(),
