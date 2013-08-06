@@ -21,19 +21,32 @@ package org.elasticsearch.river.rabbitmq;
 
 import com.rabbitmq.client.*;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.base.Charsets;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.jackson.core.JsonFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.river.AbstractRiverComponent;
 import org.elasticsearch.river.River;
 import org.elasticsearch.river.RiverName;
@@ -319,7 +332,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
 
                         try {
-                            processBody(task.getBody(), bulkRequestBuilder);
+                            processBody(task, bulkRequestBuilder);
                         } catch (Exception e) {
                             logger.warn("failed to parse request for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
                             try {
@@ -337,7 +350,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                             try {
                                 while ((task = consumer.nextDelivery(bulkTimeout.millis())) != null) {
                                     try {
-                                        processBody(task.getBody(), bulkRequestBuilder);
+                                        processBody(task, bulkRequestBuilder);
                                         deliveryTags.add(task.getEnvelope().getDeliveryTag());
                                     } catch (Throwable e) {
                                         logger.warn("failed to parse request for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
@@ -370,13 +383,14 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                             logger.trace("executing bulk with [{}] actions", bulkRequestBuilder.numberOfActions());
                         }
 
-                        if (ordered) {
+                        // if we have no bulk actions we might have processed custom commands, so ack them
+                        if (ordered || bulkRequestBuilder.numberOfActions() == 0) {
                             try {
                                 if (bulkRequestBuilder.numberOfActions() > 0) {
                                   BulkResponse response = bulkRequestBuilder.execute().actionGet();
                                   if (response.hasFailures()) {
                                     // TODO write to exception queue?
-                                    logger.warn("failed to execute" + response.buildFailureMessage());
+                                    logger.warn("failed to execute: " + response.buildFailureMessage());
                                   }
                                 }
                                 for (Long deliveryTag : deliveryTags) {
@@ -396,7 +410,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                     public void onResponse(BulkResponse response) {
                                         if (response.hasFailures()) {
                                           // TODO write to exception queue?
-                                          logger.warn("failed to execute" + response.buildFailureMessage());
+                                          logger.warn("failed to execute: " + response.buildFailureMessage());
                                         }
                                         for (Long deliveryTag : deliveryTags) {
                                             try {
@@ -433,24 +447,41 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             }
         }
 
-        private void processBody(byte[] body, BulkRequestBuilder bulkRequestBuilder) throws Exception {
-            if (body == null) return;
+        private void processBody(QueueingConsumer.Delivery task, BulkRequestBuilder bulkRequestBuilder) throws Exception {
+            if (null == task) return;
+            byte[] body = task.getBody();
+        	if (body == null) return;
 
-            // first, the "full bulk" script
-            if (bulkScript != null) {
-                String bodyStr = new String(body);
-                bulkScript.setNextVar("body", bodyStr);
-                String newBodyStr = (String) bulkScript.run();
-                if (newBodyStr == null) return ;
-                body =  newBodyStr.getBytes();
-            }
-
-            // second, the "doc per doc" script
-            if (script != null) {
-                processBodyPerLine(body, bulkRequestBuilder);
-            } else {
-                bulkRequestBuilder.add(body, 0, body.length, false);
-            }
+            // check for custom commands, which can be specified in the task header
+         	String customCommand = null;
+         	Map<String, Object> headers = task.getProperties().getHeaders();
+         	if (null != headers) {
+         		Object headerVal = headers.get("X-ES-Command");
+         		if (null != headerVal)
+         			customCommand = headerVal.toString();
+         	}
+         			
+         	if (null == customCommand || customCommand.isEmpty()) {
+	            // first, the "full bulk" script
+	            if (bulkScript != null) {
+	                String bodyStr = new String(body);
+	                bulkScript.setNextVar("body", bodyStr);
+	                String newBodyStr = (String) bulkScript.run();
+	                if (newBodyStr == null) return ;
+	                body =  newBodyStr.getBytes();
+	            }
+	
+	            // second, the "doc per doc" script
+	            if (script != null) {
+	                processBodyPerLine(body, bulkRequestBuilder);
+	            } else {
+	                bulkRequestBuilder.add(body, 0, body.length, false);
+	            }
+         	}
+         	else {
+         		// handle the custom command
+         		handleCustomCommand(customCommand, task);
+         	}
         }
 
         private void processBodyPerLine(byte[] body, BulkRequestBuilder bulkRequestBuilder) throws Exception {
@@ -496,5 +527,177 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 }
             }
         }
+        
+        private void handleCustomCommand(String customCommand, QueueingConsumer.Delivery task) throws Exception {
+    		if (logger.isTraceEnabled()) {
+                logger.trace("executing custom command: [{}]", customCommand);
+            }
+        	if (customCommand.equalsIgnoreCase("mapping")) {
+				CommandParser parser = null;
+				try {
+					parser = new CommandParser(task.getBody());
+					PutMappingResponse response = client.admin().indices().preparePutMapping(parser.getIndex()).setType(parser.getType()).setSource(parser.content).execute().actionGet();
+				} catch (IndexMissingException im) {
+					// if the index has not been created yet, we can should
+					// it with this mapping
+					logger.trace("index {} is missing, creating with mappin", parser.getIndex());
+					CreateIndexResponse res = client.admin().indices().prepareCreate(parser.getIndex()).addMapping(parser.getType(), parser.content).execute().actionGet();
+				}
+			} else if (customCommand.equalsIgnoreCase("deleteByQuery")) {
+				CommandParser parser = null;
+				parser = new CommandParser(task.getBody());
+				if (null != parser.getIndex()) {
+					DeleteByQueryRequest dreq = new DeleteByQueryRequest(parser.getIndex());
+					if (null != parser.getType())
+						dreq.types(parser.getType());
+					if (null != parser.queryString)
+						dreq.query(new QueryStringQueryBuilder(parser.queryString));
+					else
+						dreq.query(parser.content);
+					DeleteByQueryResponse response = client.deleteByQuery(dreq).actionGet();
+				}
+			} else {
+				logger.warn("unknown custom command - {} [{}]", customCommand, task.getEnvelope().getDeliveryTag());
+			}
+        }
+        
+		class CommandParser {
+			private String index = null;
+			private String type = null;
+			private String queryString = null;
+			private String content = null;
+
+			public CommandParser(byte[] data) throws Exception {
+				BytesArray arr = new BytesArray(data, 0, data.length);
+				parse(arr);
+			}
+
+			private void parse(BytesReference data) throws Exception {
+				XContent xContent = XContentFactory.xContent(data);
+				String source = XContentBuilder.builder(xContent).string();
+				int from = 0;
+				int length = data.length();
+				byte marker = xContent.streamSeparator();
+				int nextMarker = findNextMarker(marker, from, data, length);
+				if (nextMarker == -1) {
+					nextMarker = length;
+				}
+				// now parse the action
+				XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from));
+
+				try {
+					// move pointers
+					from = nextMarker + 1;
+
+					// Move to START_OBJECT
+					XContentParser.Token token = parser.nextToken();
+					if (token == null) {
+						throw new Exception("Wrong object structure");
+					}
+					assert token == XContentParser.Token.START_OBJECT;
+					// Move to FIELD_NAME, that's the action
+					// token = parser.nextToken();
+					// assert token == XContentParser.Token.FIELD_NAME;
+					// String action = parser.currentName();
+
+					String id = null;
+					String routing = null;
+					String parent = null;
+					String timestamp = null;
+					Long ttl = null;
+					String opType = null;
+					long version = 0;
+					VersionType versionType = VersionType.INTERNAL;
+					String percolate = null;
+
+					// at this stage, next token can either be END_OBJECT
+					// (and use default index and type, with auto generated
+					// id)
+					// or START_OBJECT which will have another set of
+					// parameters
+
+					String currentFieldName = null;
+					while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+						if (token == XContentParser.Token.FIELD_NAME) {
+							currentFieldName = parser.currentName();
+						} else if (token.isValue()) {
+							if ("_index".equals(currentFieldName)) {
+								index = parser.text();
+							} else if ("_type".equals(currentFieldName)) {
+								type = parser.text();
+							} else if ("_queryString".equals(currentFieldName)) {
+								queryString = parser.text();
+							} else if ("_id".equals(currentFieldName)) {
+								id = parser.text();
+							} else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
+								routing = parser.text();
+							} else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
+								parent = parser.text();
+							} else if ("_timestamp".equals(currentFieldName) || "timestamp".equals(currentFieldName)) {
+								timestamp = parser.text();
+							} else if ("_ttl".equals(currentFieldName) || "ttl".equals(currentFieldName)) {
+								if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+									ttl = TimeValue.parseTimeValue(parser.text(), null).millis();
+								} else {
+									ttl = parser.longValue();
+								}
+							} else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
+								opType = parser.text();
+							} else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
+								version = parser.longValue();
+							} else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName)
+									|| "versionType".equals(currentFieldName)) {
+								versionType = VersionType.fromString(parser.text());
+							} else if ("percolate".equals(currentFieldName) || "_percolate".equals(currentFieldName)) {
+								percolate = parser.textOrNull();
+							}
+						}
+					}
+					if (nextMarker < length) {
+						nextMarker = findNextMarker(marker, from, data, length);
+						if (nextMarker == -1) {
+							nextMarker = length;
+						}
+						content = getString(data.slice(from, nextMarker - from));
+					}
+
+				} finally {
+					parser.close();
+				}
+
+			}
+
+			private int findNextMarker(byte marker, int from, BytesReference data, int length) {
+				for (int i = from; i < length; i++) {
+					if (data.get(i) == marker) {
+						return i;
+					}
+				}
+				return -1;
+			}
+
+			String getString(BytesReference data) throws IOException {
+				return new String(data.array(), data.arrayOffset(), data.length(), Charsets.UTF_8);
+			}
+
+			String getIndex() {
+				return index;
+			}
+
+			String getType() {
+				return type;
+			}
+
+			String getQueryString() {
+				return queryString;
+			}
+
+			String getContent() {
+				return content;
+			}
+
+		}
+
+
     }
 }
