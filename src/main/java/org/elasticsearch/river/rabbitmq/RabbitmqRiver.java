@@ -70,10 +70,13 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private Map rabbitQueueArgs = null; //extra arguments passed to queue for creation (ha settings for example)
 
     private final int prefetchCount;
-    
+
     private final int bulkSize;
     private final TimeValue bulkTimeout;
     private final boolean ordered;
+    private final int maxRetries;
+    private final int minRetryTime;
+    private final int maxRetryTime;
 
     private volatile boolean closed = false;
 
@@ -111,7 +114,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitExchange = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange"), "elasticsearch");
             rabbitExchangeType = XContentMapValues.nodeStringValue(rabbitSettings.get("exchange_type"), "direct");
             //See http://www.enterpriseintegrationpatterns.com/InvalidMessageChannel.html for more info
-            rabbitInvalidMessageChannelQueue = XContentMapValues.nodeStringValue(rabbitSettings.get("invalid_message_queue"), null);
+            rabbitInvalidMessageChannelQueue = XContentMapValues.nodeStringValue(rabbitSettings.get("invalid_message_queue"), "elasticsearch_failed");
             rabbitRoutingKey = XContentMapValues.nodeStringValue(rabbitSettings.get("routing_key"), "elasticsearch");
             rabbitExchangeDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("exchange_durable"), true);
             rabbitQueueDurable = XContentMapValues.nodeBooleanValue(rabbitSettings.get("queue_durable"), true);
@@ -131,7 +134,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitQueueDurable = true;
             rabbitExchange = "elasticsearch";
             rabbitExchangeType = "direct";
-            rabbitInvalidMessageChannelQueue = null;
+            rabbitInvalidMessageChannelQueue = "elasticsearch_failed";
             rabbitExchangeDurable = true;
             rabbitRoutingKey = "elasticsearch";
             prefetchCount = 100;
@@ -146,10 +149,16 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 bulkTimeout = TimeValue.timeValueMillis(10);
             }
             ordered = XContentMapValues.nodeBooleanValue(indexSettings.get("ordered"), false);
+            maxRetries = XContentMapValues.nodeIntegerValue(indexSettings.get("retries"), 10);
+            minRetryTime = XContentMapValues.nodeIntegerValue(indexSettings.get("retry_min_wait"), 1);
+            maxRetryTime = XContentMapValues.nodeIntegerValue(indexSettings.get("retry_max_wait"), 30);
         } else {
             bulkSize = 100;
             bulkTimeout = TimeValue.timeValueMillis(10);
             ordered = false;
+            maxRetries = 10;
+            minRetryTime = 1;
+            maxRetryTime = 30;
         }
     }
 
@@ -295,6 +304,30 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                         if (ordered) {
                             try {
                                 BulkResponse response = bulkRequestBuilder.execute().actionGet();
+                                if (response.hasFailures() && maxRetries > 0) {
+                                    for (int try_num = 1; try_num <= maxRetries; try_num++) {
+                                        // Exponential backoff formula:
+                                        //
+                                        //   (try number / total tries)^2 * (max retry time - min retry time) + min retry time
+                                        //
+                                        // In other words, take the graph of y=x^2 from x=0 to x=1 and
+                                        // scale it to the number of tries and the minimum and maximum wait time.
+
+                                        float sleepTime = ((float)try_num/(float)maxRetries);
+                                        sleepTime = sleepTime * sleepTime * (maxRetryTime - minRetryTime) + minRetryTime;
+
+                                        logger.warn("(try {} of {}) failed to execute, waiting {} seconds" + response.buildFailureMessage(), try_num, maxRetries, sleepTime);
+
+                                        Thread.sleep((long)(sleepTime * 1000));
+
+                                        response = bulkRequestBuilder.execute().actionGet();
+                                        if (!response.hasFailures())
+                                            break;
+                                    }
+
+                                    logger.warn("total failure after {} tries", maxRetries);
+                                }
+
                                 if (response.hasFailures()) {
                                     queueInvalidMessages(response.buildFailureMessage(), bodies);
                                     logger.warn("failed to execute" + response.buildFailureMessage());
