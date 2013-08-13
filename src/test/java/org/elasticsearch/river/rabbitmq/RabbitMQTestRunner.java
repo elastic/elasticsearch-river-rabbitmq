@@ -129,7 +129,7 @@ public abstract class RabbitMQTestRunner {
                     .put("index.number_of_replicas", 0)
                     .put(nodeSettings())
                 .build();
-            node = NodeBuilder.nodeBuilder().settings(settings).node();
+            node = NodeBuilder.nodeBuilder().local(true).settings(settings).node();
 
             // We first remove existing index if any
             try {
