@@ -5,25 +5,66 @@ The RabbitMQ River plugin allows index [bulk format messages](http://www.elastic
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-river-rabbitmq/1.6.0`.
 
-    -----------------------------------------------------------------
-    | RabbitMQ Plugin          | ElasticSearch    | RabbitMQ Client |
-    -----------------------------------------------------------------
-    | 1.7.0-SNAPSHOT (master)  | 0.90 -> master   | 3.1.3           |
-    -----------------------------------------------------------------
-    | 1.6.0                    | 0.90             | 3.1.1           |
-    -----------------------------------------------------------------
-    | 1.5.0                    | 0.19             | 3.1.0           |
-    -----------------------------------------------------------------
-    | 1.4.0                    | 0.19             | 2.8.4           |
-    -----------------------------------------------------------------
-    | 1.3.0                    | 0.19             | 2.8.2           |
-    -----------------------------------------------------------------
-    | 1.2.0                    | 0.19             | 2.8.1           |
-    -----------------------------------------------------------------
-    | 1.1.0                    | 0.19             | 2.7.0           |
-    -----------------------------------------------------------------
-    | 1.0.0                    | 0.18             | 2.7.0           |
-    -----------------------------------------------------------------
+<table>
+	<thead>
+		<tr>
+			<td>RabbitMQ River Plugin</td>
+			<td>ElasticSearch</td>
+			<td>RabbitMQ Client</td>
+			<td>Release date</td>
+		</tr>
+	</thead>
+	<tbody>
+		<tr>
+			<td>1.7.0-SNAPSHOT (master)</td>
+			<td>0.90 -> master</td>
+			<td>3.1.3</td>
+			<td></td>
+		</tr>
+		<tr>
+			<td>1.6.0</td>
+			<td>0.90</td>
+			<td>3.1.1</td>
+			<td>05/06/2013</td>
+		</tr>
+		<tr>
+			<td>1.5.0</td>
+			<td>0.19</td>
+			<td>3.1.0</td>
+			<td>16/05/2013</td>
+		</tr>
+		<tr>
+			<td>1.4.0</td>
+			<td>0.19</td>
+			<td>2.8.4</td>
+			<td>31/07/2012</td>
+		</tr>
+		<tr>
+			<td>1.3.0</td>
+			<td>0.19</td>
+			<td>2.8.2</td>
+			<td>07/06/2012</td>
+		</tr>
+		<tr>
+			<td>1.2.0</td>
+			<td>0.19</td>
+			<td>2.8.1</td>
+			<td>27/04/2012</td>
+		</tr>
+		<tr>
+			<td>1.1.0</td>
+			<td>0.19</td>
+			<td>2.7.0</td>
+			<td>07/02/2012</td>
+		</tr>
+        <tr>
+			<td>1.0.0</td>
+			<td>0.18</td>
+			<td>2.7.0</td>
+			<td>05/12/2011</td>
+		</tr>
+	</tbody>
+</table>
 
 RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.com/) queue. The format of the messages follows the bulk api format:
 
