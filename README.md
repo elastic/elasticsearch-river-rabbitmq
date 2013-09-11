@@ -97,6 +97,8 @@ curl -XPUT 'localhost:9200/_river/my_river/_meta' -d '{
         "queue_bind" : true,
         "queue_durable" : true,
         "queue_auto_delete" : false,
+        "qos_prefetch_size" : 0,
+        "qos_prefetch_count" : 10,
         "heartbeat" : "30m"
     },
     "index" : {
