@@ -27,6 +27,7 @@ import java.util.Map;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
@@ -74,7 +75,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final int bulkSize;
     private final TimeValue bulkTimeout;
     private final boolean ordered;
-    private final int maxRetries;
+    private final int maxTries;
     private final int minRetryTime;
     private final int maxRetryTime;
 
@@ -149,14 +150,14 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 bulkTimeout = TimeValue.timeValueMillis(10);
             }
             ordered = XContentMapValues.nodeBooleanValue(indexSettings.get("ordered"), false);
-            maxRetries = XContentMapValues.nodeIntegerValue(indexSettings.get("retries"), 10);
+            maxTries = 1 + XContentMapValues.nodeIntegerValue(indexSettings.get("retries"), 9);
             minRetryTime = XContentMapValues.nodeIntegerValue(indexSettings.get("retry_min_wait"), 1);
             maxRetryTime = XContentMapValues.nodeIntegerValue(indexSettings.get("retry_max_wait"), 30);
         } else {
             bulkSize = 100;
             bulkTimeout = TimeValue.timeValueMillis(10);
             ordered = false;
-            maxRetries = 10;
+            maxTries = 10;
             minRetryTime = 1;
             maxRetryTime = 30;
         }
@@ -303,29 +304,29 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
                         if (ordered) {
                             try {
-                                BulkResponse response = bulkRequestBuilder.execute().actionGet();
-                                if (response.hasFailures() && maxRetries > 0) {
-                                    for (int try_num = 1; try_num <= maxRetries; try_num++) {
-                                        // Exponential backoff formula:
-                                        //
-                                        //   (try number / total tries)^2 * (max retry time - min retry time) + min retry time
-                                        //
-                                        // In other words, take the graph of y=x^2 from x=0 to x=1 and
-                                        // scale it to the number of tries and the minimum and maximum wait time.
+                                BulkResponse response = null;
 
-                                        float sleepTime = ((float)try_num/(float)maxRetries);
+                                for (int try_num = 1; try_num <= maxTries; try_num++) {
+                                    // Exponential backoff formula:
+                                    //
+                                    //   (try number / total tries)^2 * (max retry time - min retry time) + min retry time
+                                    //
+                                    // In other words, take the graph of y=x^2 from x=0 to x=1 and
+                                    // scale it to the number of tries and the minimum and maximum wait time.
+
+                                    response = bulkRequestBuilder.execute().actionGet();
+                                    if (responseContainsRetriableFailures(response)) {
+                                        float sleepTime = ((float)try_num/(float)maxTries);
                                         sleepTime = sleepTime * sleepTime * (maxRetryTime - minRetryTime) + minRetryTime;
 
-                                        logger.warn("(try {} of {}) failed to execute, waiting {} seconds" + response.buildFailureMessage(), try_num, maxRetries, sleepTime);
+                                        logger.warn("(try {} of {}) failed to execute, waiting {} seconds" + response.buildFailureMessage(), try_num, maxTries, sleepTime);
 
                                         Thread.sleep((long)(sleepTime * 1000));
-
-                                        response = bulkRequestBuilder.execute().actionGet();
-                                        if (!response.hasFailures())
-                                            break;
+                                    } else {
+                                        break;
                                     }
 
-                                    logger.warn("total failure after {} tries", maxRetries);
+                                    logger.warn("total failure after {} tries", maxTries);
                                 }
 
                                 if (response.hasFailures()) {
@@ -381,6 +382,26 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 }
             }
             cleanup(0, "closing river");
+        }
+
+        private boolean responseContainsRetriableFailures(BulkResponse response) {
+            if (response.hasFailures()) {
+                for (BulkItemResponse item : response) {
+                    if (item.isFailed()) {
+                        if (!item.getFailureMessage().startsWith("MapperParsingException")) {
+                            // Retry for anything that isn't a MapperParsingException.
+                            // I wish I had a list of error messages so that I could
+                            // make this list more comprehensive.  We don't want to
+                            // retry MapperParsingExceptions because the message won't
+                            // magically become parsable.
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            } else {
+                return false;
+            }
         }
 
         private void queueInvalidMessages(final String message, final List<byte[]> bodies) {
