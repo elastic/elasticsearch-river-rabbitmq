@@ -1,70 +1,21 @@
-RabbitMQ River Plugin for ElasticSearch
+RabbitMQ River Plugin for Elasticsearch
 ==================================
 
 The RabbitMQ River plugin allows index [bulk format messages](http://www.elasticsearch.org/guide/reference/api/bulk/) into elasticsearch.
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-river-rabbitmq/1.6.0`.
 
-<table>
-	<thead>
-		<tr>
-			<td>RabbitMQ River Plugin</td>
-			<td>ElasticSearch</td>
-			<td>RabbitMQ Client</td>
-			<td>Release date</td>
-		</tr>
-	</thead>
-	<tbody>
-		<tr>
-			<td>1.7.0-SNAPSHOT (master)</td>
-			<td>0.90 -> master</td>
-			<td>3.1.3</td>
-			<td></td>
-		</tr>
-		<tr>
-			<td>1.6.0</td>
-			<td>0.90</td>
-			<td>3.1.1</td>
-			<td>05/06/2013</td>
-		</tr>
-		<tr>
-			<td>1.5.0</td>
-			<td>0.19</td>
-			<td>3.1.0</td>
-			<td>16/05/2013</td>
-		</tr>
-		<tr>
-			<td>1.4.0</td>
-			<td>0.19</td>
-			<td>2.8.4</td>
-			<td>31/07/2012</td>
-		</tr>
-		<tr>
-			<td>1.3.0</td>
-			<td>0.19</td>
-			<td>2.8.2</td>
-			<td>07/06/2012</td>
-		</tr>
-		<tr>
-			<td>1.2.0</td>
-			<td>0.19</td>
-			<td>2.8.1</td>
-			<td>27/04/2012</td>
-		</tr>
-		<tr>
-			<td>1.1.0</td>
-			<td>0.19</td>
-			<td>2.7.0</td>
-			<td>07/02/2012</td>
-		</tr>
-        <tr>
-			<td>1.0.0</td>
-			<td>0.18</td>
-			<td>2.7.0</td>
-			<td>05/12/2011</td>
-		</tr>
-	</tbody>
-</table>
+|    RabbitMQ River Plugin   |    elasticsearch    | RabbitMQ Client | Release date |
+|----------------------------|---------------------|-----------------|:------------:|
+| 2.0.0.RC1-SNAPSHOT (master)| 1.0.0.RC1 -> master |                 |              |
+| 1.7.0-SNAPSHOT (1.x)       | 0.90                |    3.1.3        |              |
+| 1.6.0                      | 0.90                |    3.1.1        |  2013-06-05  |
+| 1.5.0                      | 0.19 -> 0.20        |    3.1.0        |  2013-05-16  |
+| 1.4.0                      | 0.19                |    2.8.4        |  2012-07-31  |
+| 1.3.0                      | 0.19                |    2.8.2        |  2012-06-07  |
+| 1.2.0                      | 0.19                |    2.8.1        |  2012-04-27  |
+| 1.1.0                      | 0.19                |    2.7.0        |  2012-02-07  |
+| 1.0.0                      | 0.18                |    2.7.0        |  2011-12-05  |
 
 RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.com/) queue. The format of the messages follows the bulk api format:
 
@@ -224,7 +175,7 @@ License
 
     This software is licensed under the Apache 2 license, quoted below.
 
-    Copyright 2009-2013 Shay Banon and ElasticSearch <http://www.elasticsearch.org>
+    Copyright 2009-2014 Elasticsearch <http://www.elasticsearch.org>
 
     Licensed under the Apache License, Version 2.0 (the "License"); you may not
     use this file except in compliance with the License. You may obtain a copy of
