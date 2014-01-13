@@ -95,7 +95,7 @@ public abstract class RabbitMQTestRunner extends ElasticsearchIntegrationTest {
         // If it's not launched, we don't fail the test but only log it
         try {
             logger.info(" --> remove existing indices");
-            wipeIndices();
+            wipeIndices("_all");
 
             logger.info(" --> connecting to rabbitmq");
             ConnectionFactory cfconn = new ConnectionFactory();
