@@ -23,7 +23,6 @@ import com.rabbitmq.client.Channel;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.node.Node;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -68,17 +67,17 @@ public class RabbitMQRiverSingleLineScriptTest extends RabbitMQTestRunner {
     }
 
     @Override
-    protected void postInjectionTests(Node node) {
-        super.postInjectionTests(node);
+    protected void postInjectionTests() {
+        super.postInjectionTests();
 
         // Let's get some documents
-        GetResponse getResponse = node.client().prepareGet("test", "type1", "1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
         Assert.assertNotNull(getResponse);
         Assert.assertNotNull(getResponse.getSourceAsMap());
         Assert.assertEquals(2, XContentMapValues.extractValue("type1.field1", getResponse.getSourceAsMap()));
 
         // Let's get some documents
-        getResponse = node.client().prepareGet("test", "type1", "3").execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "3").execute().actionGet();
         Assert.assertNotNull(getResponse);
         Assert.assertNotNull(getResponse.getSourceAsMap());
         Assert.assertEquals(3, XContentMapValues.extractValue("type1.field1", getResponse.getSourceAsMap()));

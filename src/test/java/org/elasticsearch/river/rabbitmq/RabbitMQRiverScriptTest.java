@@ -24,8 +24,8 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.river.rabbitmq.script.MockScriptFactory;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -35,6 +35,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 /**
  *
  */
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
 public class RabbitMQRiverScriptTest extends RabbitMQTestRunner {
 
     @Override
@@ -67,21 +68,21 @@ public class RabbitMQRiverScriptTest extends RabbitMQTestRunner {
     }
 
     @Override
-    protected Settings nodeSettings() {
+    protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder().put("script.native.mock_script.type", MockScriptFactory.class).build();
     }
 
     @Override
-    protected void postInjectionTests(Node node) {
-        super.postInjectionTests(node);
+    protected void postInjectionTests() {
+        super.postInjectionTests();
 
         // Doc 1 should exist
-        GetResponse getResponse = node.client().prepareGet("test", "type1", "1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
         Assert.assertNotNull(getResponse);
         Assert.assertTrue(getResponse.isExists());
 
         // Doc 3 should not exist
-        getResponse = node.client().prepareGet("test", "type1", "3").execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "3").execute().actionGet();
         Assert.assertNotNull(getResponse);
         Assert.assertFalse(getResponse.isExists());
     }

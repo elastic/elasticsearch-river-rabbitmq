@@ -26,13 +26,8 @@ import com.rabbitmq.client.ConnectionFactory;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
-import org.junit.After;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -42,12 +37,11 @@ import java.net.ConnectException;
 /**
  *
  */
-public abstract class RabbitMQTestRunner {
+@AbstractRabbitMQTest.RabbitMQTest
+public abstract class RabbitMQTestRunner extends ElasticsearchIntegrationTest {
 
     protected ESLogger logger = ESLoggerFactory.getLogger(RabbitMQTestRunner.class.getName());
     private static String INDEX = "test";
-
-    protected Node node;
 
     protected abstract void pushMessages(Channel ch) throws IOException;
 
@@ -86,20 +80,12 @@ public abstract class RabbitMQTestRunner {
     /**
      * If you need to run specific tests, just override this method.
      * By default, we check the number of expected documents
-     * @param node Elasticsearch current node
      */
-    protected void postInjectionTests(Node node) {
-        CountResponse response = node.client().prepareCount("test").execute().actionGet();
+    protected void postInjectionTests() {
+        logger.info(" --> checking number of documents");
+        CountResponse response = client().prepareCount("test").execute().actionGet();
         // We have consumed all messages. We can now check expected number of documents
         Assert.assertEquals("Wrong number of documents found", expectedDocuments(), response.getCount());
-    }
-
-    /**
-     * Override if you need to add specific settings for your node
-     * @return
-     */
-    protected Settings nodeSettings() {
-        return ImmutableSettings.settingsBuilder().build();
     }
 
     @Test
@@ -108,6 +94,10 @@ public abstract class RabbitMQTestRunner {
         // We try to connect to RabbitMQ.
         // If it's not launched, we don't fail the test but only log it
         try {
+            logger.info(" --> remove existing indices");
+            wipeIndices();
+
+            logger.info(" --> connecting to rabbitmq");
             ConnectionFactory cfconn = new ConnectionFactory();
             cfconn.setHost("localhost");
             cfconn.setPort(AMQP.PROTOCOL.PORT);
@@ -120,28 +110,13 @@ public abstract class RabbitMQTestRunner {
             // We purge the queue in case of something is remaining there
             ch.queuePurge("elasticsearch");
 
+            logger.info(" --> sending messages");
             pushMessages(ch);
 
-            // We can now create our node and our river
-            Settings settings = ImmutableSettings.settingsBuilder()
-                    .put("gateway.type", "none")
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .put(nodeSettings())
-                .build();
-            node = NodeBuilder.nodeBuilder().local(true).settings(settings).node();
+            logger.info(" --> create river");
+            createIndex(INDEX);
 
-            // We first remove existing index if any
-            try {
-                node.client().admin().indices().prepareDelete(INDEX).execute().actionGet();
-            } catch (IndexMissingException e) {
-                // Index is missing? It's perfectly fine!
-            }
-
-            // Let's create an index for our docs and we will disable refresh
-            node.client().admin().indices().prepareCreate(INDEX).execute().actionGet();
-
-            node.client().prepareIndex("_river", "test", "_meta").setSource(river()).execute().actionGet();
+            index("_river", "test", "_meta", river());
 
             // We need at some point to check if we have consumed the river
             int steps = timeout();
@@ -151,7 +126,7 @@ public abstract class RabbitMQTestRunner {
                 // We wait for one second
                 Thread.sleep(1000);
 
-                CountResponse response = node.client().prepareCount("test").execute().actionGet();
+                CountResponse response = client().prepareCount("test").execute().actionGet();
                 count = response.getCount();
 
                 steps--;
@@ -163,19 +138,10 @@ public abstract class RabbitMQTestRunner {
             ch.close();
             conn.close();
 
-            postInjectionTests(node);
+            postInjectionTests();
         } catch (ConnectException e) {
-            logger.warn("RabbitMQ service is not launched on localhost:{}. Can not start Integration test. " +
-                    "Launch `rabbitmq-server`.", AMQP.PROTOCOL.PORT);
+            throw new Exception("RabbitMQ service is not launched on localhost:" +AMQP.PROTOCOL.PORT + ". Can not start Integration test. " +
+                    "Launch `rabbitmq-server`.", e);
         }
-    }
-
-    @After
-    public void tearDown() {
-        // After each test, we kill the node
-        if (node != null) {
-            node.close();
-        }
-        node = null;
     }
 }

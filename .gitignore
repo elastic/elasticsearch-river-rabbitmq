@@ -8,3 +8,4 @@
 /.settings
 /.project
 /.classpath
+.local-execution-hints.log
