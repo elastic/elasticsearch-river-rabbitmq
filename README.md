@@ -7,8 +7,8 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 
 |    RabbitMQ River Plugin   |    elasticsearch    | RabbitMQ Client | Release date |
 |----------------------------|---------------------|-----------------|:------------:|
-| 2.0.0.RC1-SNAPSHOT (master)| 1.0.0.RC1 -> master |                 |              |
-| 1.7.0-SNAPSHOT (1.x)       | 0.90                |    3.1.3        |              |
+| 2.0.0.RC1-SNAPSHOT (master)| 1.0.0.RC1 -> master |    3.2.2        |              |
+| 1.7.0-SNAPSHOT (1.x)       | 0.90                |    3.2.2        |              |
 | 1.6.0                      | 0.90                |    3.1.1        |  2013-06-05  |
 | 1.5.0                      | 0.19 -> 0.20        |    3.1.0        |  2013-05-16  |
 | 1.4.0                      | 0.19                |    2.8.4        |  2012-07-31  |
