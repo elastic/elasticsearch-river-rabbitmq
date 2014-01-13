@@ -31,7 +31,7 @@
 
     <properties>
         <elasticsearch.version>0.90.2</elasticsearch.version>
-        <amqp-client.version>3.1.3</amqp-client.version>
+        <amqp-client.version>3.2.2</amqp-client.version>
     </properties>
 
     <repositories>
