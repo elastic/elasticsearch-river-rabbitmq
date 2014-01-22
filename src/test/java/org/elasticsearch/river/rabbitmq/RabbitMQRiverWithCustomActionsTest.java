@@ -33,6 +33,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -101,7 +102,7 @@ public class RabbitMQRiverWithCustomActionsTest {
         Thread.sleep(5000);
         Boolean exists = node.client().get(new GetRequest("mqtest").id("1")).get().isExists();
         ClusterState state = node.client().admin().cluster().state(new ClusterStateRequest().filteredIndices("mqtest")).get().getState();
-        ImmutableMap<String, MappingMetaData>  mappings = state.getMetaData().index("mqtest").mappings();
+        ImmutableOpenMap<String, MappingMetaData>  mappings = state.getMetaData().index("mqtest").mappings();
         MappingMetaData typeMap = mappings.get("type2");
         if (null != typeMap){
         	String gotMapping = typeMap.source().toString();
