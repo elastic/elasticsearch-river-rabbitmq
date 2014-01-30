@@ -47,17 +47,18 @@ public class RabbitMQRiverWithCustomActionsTest {
 
 	public static void main(String[] args) throws Exception {
 
+		String rabbitHost = "rabbit-qa1";
         Node node = NodeBuilder.nodeBuilder().settings(ImmutableSettings.settingsBuilder().put("gateway.type", "none").put("cluster.name", "es-mqtest")).node();
 
         node.client().prepareIndex("_river", "mqtest1", "_meta").setSource(
         		jsonBuilder().startObject().field("type", "rabbitmq")
-        		.startObject("rabbitmq").field("host", "rabbit-qa1").endObject()
+        		.startObject("rabbitmq").field("host", rabbitHost).endObject()
         		.startObject("index").field("ordered", "true").field("warnOnBulkErrors", "false").endObject()
         		.endObject()
         		).execute().actionGet();
 
         ConnectionFactory cfconn = new ConnectionFactory();
-        cfconn.setHost("rabbit-qa1");
+        cfconn.setHost(rabbitHost);
         cfconn.setPort(AMQP.PROTOCOL.PORT);
         Connection conn = cfconn.newConnection();
 
@@ -69,6 +70,13 @@ public class RabbitMQRiverWithCustomActionsTest {
         String message = "{ \"index\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"1\" , \"_version\" : \"2\"} }\n" +
                 "{ \"type1\" : { \"field1\" : \"value1\" } }\n" +
                 "{ \"delete\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"2\" } }\n" +
+                "{ \"create\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"1\" , \"_version\" : \"2\"} }\n" +
+                "{ \"create\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"1\" , \"_version\" : \"1\"} }\n" +
+                "{ \"type1\" : { \"field1\" : \"value1\" } }";
+
+        String messageWithWrongIndex = "{ \"index\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"1\" , \"_version\" : \"2\"} }\n" +
+                "{ \"type1\" : { \"field1\" : \"value1\" } }\n" +
+                "{ \"delete\" : { \"_index\" : \"This.Is.An.Invalid.Name\", \"_type\" : \"type1\", \"_id\" : \"2\" } }\n" +
                 "{ \"create\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"1\" , \"_version\" : \"2\"} }\n" +
                 "{ \"create\" : { \"_index\" : \"mqtest\", \"_type\" : \"type1\", \"_id\" : \"1\" , \"_version\" : \"1\"} }\n" +
                 "{ \"type1\" : { \"field1\" : \"value1\" } }";
@@ -92,7 +100,7 @@ public class RabbitMQRiverWithCustomActionsTest {
         ch.basicPublish("elasticsearch", "elasticsearch", props, deleteByQuery.getBytes());
         Thread.sleep(5000);
         ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
-        ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
+        ch.basicPublish("elasticsearch", "elasticsearch", null, messageWithWrongIndex.getBytes());
         ch.basicPublish("elasticsearch", "elasticsearch", null, message.getBytes());
         ch.basicPublish("elasticsearch", "elasticsearch", props, deleteByQuery.getBytes());
         Thread.sleep(5000);

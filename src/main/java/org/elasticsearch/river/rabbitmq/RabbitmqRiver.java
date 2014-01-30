@@ -295,7 +295,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                     }
                 }
 
-                QueueingConsumer consumer = new QueueingConsumer(channel);
+                QueueingConsumer consumer = null;
                 // define the queue
                 try {
                     if (rabbitQueueDeclare) {
@@ -306,11 +306,14 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                         // only declare the exchange if we should
                         channel.exchangeDeclare(rabbitExchange/*exchange*/, rabbitExchangeType/*type*/, rabbitExchangeDurable);
                     }
+
+                    channel.basicQos(rabbitQosPrefetchSize/*qos_prefetch_size*/, rabbitQosPrefetchCount/*qos_prefetch_count*/, false);
+                    
                     if (rabbitQueueBind) {
                         // only bind queue if we should
                         channel.queueBind(rabbitQueue/*queue*/, rabbitExchange/*exchange*/, rabbitRoutingKey/*routingKey*/);
                     }
-                    channel.basicQos(rabbitQosPrefetchSize/*qos_prefetch_size*/, rabbitQosPrefetchCount/*qos_prefetch_count*/, false);
+                    consumer = new QueueingConsumer(channel);
                     channel.basicConsume(rabbitQueue/*queue*/, false/*noAck*/, consumer);
                 } catch (Exception e) {
                     if (!closed) {
@@ -403,15 +406,15 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                     logger.warn("failed to execute: " + response.buildFailureMessage());
                                   }
                                 }
-                                for (Long deliveryTag : deliveryTags) {
-                                    try {
-                                        channel.basicAck(deliveryTag, false);
-                                    } catch (Exception e1) {
-                                        logger.warn("failed to ack [{}]", e1, deliveryTag);
-                                    }
-                                }
                             } catch (Exception e) {
                                 logger.warn("failed to execute bulk", e);
+                            }
+                            for (Long deliveryTag : deliveryTags) {
+                                try {
+                                    channel.basicAck(deliveryTag, false);
+                                } catch (Exception e1) {
+                                    logger.warn("failed to ack [{}]", e1, deliveryTag);
+                                }
                             }
                         } else {
                             if (bulkRequestBuilder.numberOfActions()>0) {
