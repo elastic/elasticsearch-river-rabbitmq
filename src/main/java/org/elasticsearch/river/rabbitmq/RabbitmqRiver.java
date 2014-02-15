@@ -71,6 +71,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final boolean rabbitQueueAutoDelete;
     private Map rabbitQueueArgs = null; //extra arguments passed to queue for creation (ha settings for example)
     private final TimeValue rabbitHeartbeat;
+    private final boolean rabbitNackErrors;
 
     private final int bulkSize;
     private final TimeValue bulkTimeout;
@@ -141,7 +142,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
             rabbitHeartbeat = TimeValue.parseTimeValue(XContentMapValues.nodeStringValue(
                     rabbitSettings.get("heartbeat"), "30m"), TimeValue.timeValueMinutes(30));
-
+            rabbitNackErrors = XContentMapValues.nodeBooleanValue(rabbitSettings.get("nack_errors"), true);
         } else {
             rabbitAddresses = new Address[]{ new Address("localhost", AMQP.PROTOCOL.PORT) };
             rabbitUser = "guest";
@@ -161,6 +162,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitQueueBind = true;
 
             rabbitHeartbeat = TimeValue.timeValueMinutes(30);
+            rabbitNackErrors = true;
         }
 
         if (settings.settings().containsKey("index")) {
@@ -392,6 +394,18 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                 }
                             } catch (Exception e) {
                                 logger.warn("failed to execute bulk", e);
+                                if (rabbitNackErrors) {
+                                    logger.warn("failed to execute bulk for delivery tags [{}], nack'ing", e, deliveryTags);
+                                    for (Long deliveryTag : deliveryTags) {
+                                        try {
+                                            channel.basicNack(deliveryTag, false, false);
+                                        } catch (Exception e1) {
+                                            logger.warn("failed to nack [{}]", e1, deliveryTag);
+                                        }
+                                    }
+                                } else {
+                                    logger.warn("failed to execute bulk for delivery tags [{}], ignoring", e, deliveryTags);
+                                }
                             }
                         } else {
                             if (bulkRequestBuilder.numberOfActions()>0) {
@@ -413,7 +427,18 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                     
                                     @Override
                                     public void onFailure(Throwable e) {
-                                        logger.warn("failed to execute bulk for delivery tags [{}], not ack'ing", e, deliveryTags);
+                                        if (rabbitNackErrors) {
+                                            logger.warn("failed to execute bulk for delivery tags [{}], nack'ing", e, deliveryTags);
+                                            for (Long deliveryTag : deliveryTags) {
+                                                try {
+                                                    channel.basicNack(deliveryTag, false, false);
+                                                } catch (Exception e1) {
+                                                    logger.warn("failed to nack [{}]", e1, deliveryTag);
+                                                }
+                                            }
+                                        } else {
+                                            logger.warn("failed to execute bulk for delivery tags [{}], ignoring", e, deliveryTags);
+                                        }
                                     }
                                 });
                             }

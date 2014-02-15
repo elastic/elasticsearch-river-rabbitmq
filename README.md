@@ -45,7 +45,8 @@ curl -XPUT 'localhost:9200/_river/my_river/_meta' -d '{
         "queue_bind" : true,
         "queue_durable" : true,
         "queue_auto_delete" : false,
-        "heartbeat" : "30m"
+        "heartbeat" : "30m",
+        "nack_errors" : true
     },
     "index" : {
         "bulk_size" : 100,
@@ -93,6 +94,9 @@ You can set `heartbeat` option to define heartbeat to RabbitMQ river even if no 
 (default to `30m`).
 
 Replication mode is set to node default value. You can change it by forcing `replication` to `async` or `sync`.
+
+By default, when exception happens while executing bulk, failing messages are marked as rejected.
+You can ignore errors and ack messages in any case setting `nack_errors` to `false`.
 
 Scripting
 ---------
