@@ -50,7 +50,8 @@ curl -XPUT 'localhost:9200/_river/my_river/_meta' -d '{
     "index" : {
         "bulk_size" : 100,
         "bulk_timeout" : "10ms",
-        "ordered" : false
+        "ordered" : false,
+        "replication" : "default"
     }
 }'
 ```
@@ -90,6 +91,8 @@ It can also be used as a simple way to throttle indexing.
 
 You can set `heartbeat` option to define heartbeat to RabbitMQ river even if no more messages are intended to be consumed
 (default to `30m`).
+
+Replication mode is set to node default value. You can change it by forcing `replication` to `async` or `sync`.
 
 Scripting
 ---------
