@@ -388,6 +388,13 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                 }
                             } catch (Exception e) {
                                 logger.warn("failed to execute bulk", e);
+                                for (Long deliveryTag : deliveryTags) {
+                                    try {
+                                        channel.basicNack(deliveryTag, false, false);
+                                    } catch (Exception e1) {
+                                        logger.warn("failed to nack [{}]", e1, deliveryTag);
+                                    }
+                                }
                             }
                         } else {
                             if (bulkRequestBuilder.numberOfActions()>0) {
@@ -409,7 +416,14 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                     
                                     @Override
                                     public void onFailure(Throwable e) {
-                                        logger.warn("failed to execute bulk for delivery tags [{}], not ack'ing", e, deliveryTags);
+                                        logger.warn("failed to execute bulk for delivery tags [{}], nack'ing", e, deliveryTags);
+                                        for (Long deliveryTag : deliveryTags) {
+                                            try {
+                                                channel.basicNack(deliveryTag, false, false);
+                                            } catch (Exception e1) {
+                                                logger.warn("failed to nack [{}]", e1, deliveryTag);
+                                            }
+                                        }
                                     }
                                 });
                             }
