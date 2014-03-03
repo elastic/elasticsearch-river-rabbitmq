@@ -5,10 +5,13 @@ The RabbitMQ River plugin allows index [bulk format messages](http://www.elastic
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-river-rabbitmq/1.6.0`.
 
+* For 1.0.x elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/master).
+* For 0.90.x elasticsearch versions, look at [1.x branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/1.x).
+
+
 |    RabbitMQ River Plugin   |    elasticsearch    | RabbitMQ Client | Release date |
 |----------------------------|---------------------|-----------------|:------------:|
-| 2.0.0.RC1-SNAPSHOT (master)| 1.0.0.RC1 -> master |    3.2.2        |              |
-| 1.7.0-SNAPSHOT (1.x)       | 0.90                |    3.2.2        |              |
+| 1.7.0-SNAPSHOT             | 0.90                |    3.2.2        |  XXXX-XX-XX  |
 | 1.6.0                      | 0.90                |    3.1.1        |  2013-06-05  |
 | 1.5.0                      | 0.19 -> 0.20        |    3.1.0        |  2013-05-16  |
 | 1.4.0                      | 0.19                |    2.8.4        |  2012-07-31  |
