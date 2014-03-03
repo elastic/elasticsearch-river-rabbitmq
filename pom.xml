@@ -34,7 +34,6 @@
         <elasticsearch.version>0.90.11</elasticsearch.version>
         <amqp-client.version>3.2.3</amqp-client.version>
         <lucene.version>4.6.1</lucene.version>
-        <tests.jvms>1</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
@@ -187,7 +186,7 @@
                             <assertions>
                                 <enable/>
                             </assertions>
-                            <parallelism>${tests.jvms}</parallelism>
+                            <parallelism>1</parallelism>
                             <balancers>
                                 <execution-times>
                                     <fileset dir="${basedir}" includes=".local-execution-hints.log"/>
