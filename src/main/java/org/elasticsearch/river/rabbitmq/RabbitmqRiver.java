@@ -23,6 +23,7 @@ import com.rabbitmq.client.*;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
@@ -74,6 +75,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final int bulkSize;
     private final TimeValue bulkTimeout;
     private final boolean ordered;
+    private final ReplicationType replicationType;
 
     private final ExecutableScript bulkScript;
     private final ExecutableScript script;
@@ -170,10 +172,12 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 bulkTimeout = TimeValue.timeValueMillis(10);
             }
             ordered = XContentMapValues.nodeBooleanValue(indexSettings.get("ordered"), false);
+            replicationType = ReplicationType.fromString(XContentMapValues.nodeStringValue(indexSettings.get("replication"), "default"));
         } else {
             bulkSize = 100;
             bulkTimeout = TimeValue.timeValueMillis(10);
             ordered = false;
+            replicationType = ReplicationType.DEFAULT;
         }
         
         if (settings.settings().containsKey("bulk_script_filter")) {
@@ -316,7 +320,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                     if (task != null && task.getBody() != null) {
                         final List<Long> deliveryTags = Lists.newArrayList();
 
-                        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+                        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk().setReplicationType(replicationType);
 
                         try {
                             processBody(task.getBody(), bulkRequestBuilder);
