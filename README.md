@@ -5,15 +5,19 @@ The RabbitMQ River plugin allows index [bulk format messages](http://www.elastic
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-river-rabbitmq/2.0.0`.
 
-* For 1.0.x elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/master).
-* For 0.90.x elasticsearch versions, look at [1.x branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/1.x).
+* For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/master).
+* For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-1.1).
+* For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-1.0).
+* For 0.90.x elasticsearch versions, look at [es-0.90 branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-0.90).
 
 
 |    RabbitMQ River Plugin   |    elasticsearch    | RabbitMQ Client | Release date |
 |----------------------------|---------------------|-----------------|:------------:|
-| 2.1.0-SNAPSHOT             | 1.0.0.RC1 -> master |    3.2.3        |  XXXX-XX-XX  |
-| 2.0.0                      | 1.0.0.RC1 -> master |    3.2.3        |  2014-03-19  |
-| 2.0.0.RC1                  | 1.0.0.RC1 -> master |    3.2.2        |  2014-01-15  |
+| 2.1.0-SNAPSHOT             | 1.1.0 -> 1.1        |    3.2.3        |  XXXX-XX-XX  |
+
+Please read documentation relative to the version you are using:
+
+* [2.1.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/blob/es-1.1/README.md)
 
 RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.com/) queue. The format of the messages follows the bulk api format:
 
