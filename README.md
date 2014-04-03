@@ -5,8 +5,10 @@ The RabbitMQ River plugin allows index [bulk format messages](http://www.elastic
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-river-rabbitmq/1.6.0`.
 
-* For 1.0.x elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/master).
-* For 0.90.x elasticsearch versions, look at [1.x branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/1.x).
+* For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/master).
+* For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-1.1).
+* For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-1.0).
+* For 0.90.x elasticsearch versions, look at [es-0.90 branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-0.90).
 
 
 |    RabbitMQ River Plugin   |    elasticsearch    | RabbitMQ Client | Release date |
@@ -19,6 +21,17 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 | 1.2.0                      | 0.19                |    2.8.1        |  2012-04-27  |
 | 1.1.0                      | 0.19                |    2.7.0        |  2012-02-07  |
 | 1.0.0                      | 0.18                |    2.7.0        |  2011-12-05  |
+
+Please read documentation relative to the version you are using:
+
+* [1.7.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/blob/es-0.90/README.md)
+* [1.6.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/blob/v1.6.0/README.md)
+* [1.5.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/blob/v1.5.0/README.md)
+* [1.4.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/blob/v1.4.0/README.md)
+* [1.3.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/blob/v1.3.0/README.md)
+* [1.2.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/blob/v1.2.0/README.md)
+* [1.1.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/blob/v1.1.0/README.md)
+* [1.0.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/blob/v1.0.0/README.md)
 
 RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.com/) queue. The format of the messages follows the bulk api format:
 
