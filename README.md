@@ -180,6 +180,19 @@ meant to be indexed or created.
 
 For more information see [Scripting module](http://www.elasticsearch.org/guide/reference/modules/scripting/)
 
+Tests
+=====
+
+Integrations tests in this plugin require working RabbitMQ service and therefore disabled by default. 
+You need to launch locally `rabbitmq-server` before starting integration tests.
+
+To run test:
+
+```sh
+mvn clean test -Dtests.rabbitmq=true 
+```
+
+
 License
 -------
 
