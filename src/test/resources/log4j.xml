@@ -24,12 +24,11 @@
 		<level value="info" />
 	</logger>
 
-	<logger name="org.elasticsearch.river.rabbitmq">
-		<level value="trace" />
-	</logger>
+    <logger name="org.elasticsearch.river.rabbitmq">
+        <level value="trace" />
+    </logger>
 
-
-	<root>
+    <root>
 		<priority value="info" />
 		<appender-ref ref="console" />
 	</root>
