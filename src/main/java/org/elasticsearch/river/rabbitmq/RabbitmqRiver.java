@@ -470,14 +470,14 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
         private void cleanup(int code, String message) {
             try {
-                if (channel != null) {
+                if (channel != null && channel.isOpen()) {
                     channel.close(code, message);
                 }
             } catch (Exception e) {
                 logger.debug("failed to close channel on [{}]", e, message);
             }
             try {
-                if (connection != null) {
+                if (connection != null && connection.isOpen()) {
                     connection.close(code, message);
                 }
             } catch (Exception e) {
