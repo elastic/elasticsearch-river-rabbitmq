@@ -297,7 +297,26 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                     channel.basicConsume(rabbitQueue/*queue*/, false/*noAck*/, consumer);
                 } catch (Exception e) {
                     if (!closed) {
-                        logger.warn("failed to create queue [{}]", e, rabbitQueue);
+                        logger.warn("failed to create queue. Check your queue settings. Throttling river for 10s.");
+                        // Print expected settings
+                        if (rabbitQueueDeclare) {
+                            logger.debug("expected settings: queue [{}], durable [{}], exclusive [{}], auto_delete [{}], args [{}]",
+                                    rabbitQueue, rabbitQueueDurable, false, rabbitQueueAutoDelete, rabbitQueueArgs);
+                        }
+                        if (rabbitExchangeDeclare) {
+                            logger.debug("expected settings: exchange [{}], type [{}], durable [{}]",
+                                    rabbitExchange, rabbitExchangeType, rabbitExchangeDurable);
+                        }
+                        if (rabbitQueueBind) {
+                            logger.debug("expected settings for queue binding: queue [{}], exchange [{}], routing_key [{}]",
+                                    rabbitQueue, rabbitExchange, rabbitRoutingKey);
+                        }
+
+                        try {
+                            Thread.sleep(10000);
+                        } catch (InterruptedException e1) {
+                            // ignore, if we are closing, we will exit later
+                        }
                     }
                     cleanup(0, "failed to create queue");
                     continue;
