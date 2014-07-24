@@ -32,7 +32,7 @@
 
     <properties>
         <elasticsearch.version>1.2.1</elasticsearch.version>
-        <amqp-client.version>3.2.3</amqp-client.version>
+        <amqp-client.version>3.3.4</amqp-client.version>
         <lucene.version>4.8.1</lucene.version>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
