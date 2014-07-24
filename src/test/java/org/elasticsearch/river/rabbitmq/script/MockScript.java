@@ -20,6 +20,9 @@
 package org.elasticsearch.river.rabbitmq.script;
 
 import org.elasticsearch.common.jackson.core.JsonFactory;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import org.elasticsearch.script.AbstractExecutableScript;
 
@@ -27,56 +30,83 @@ import java.io.*;
 import java.util.Map;
 
 public class MockScript extends AbstractExecutableScript {
-  
-  private final Map<String, Object> params;
-  
-  public MockScript(Map<String, Object> params) {
-    super();
-    this.params = params;
-  }
-  
-  @Override
-  public void setNextVar(String name, Object value) {
-    params.put(name, value);
-  }
-  
-  @Override
-  public Object run() {
-    String body = (String) params.get("body");
-    BufferedReader reader = new BufferedReader(new StringReader(body));
-    
-    CharArrayWriter charArrayWriter = new CharArrayWriter();
-    BufferedWriter writer = new BufferedWriter(charArrayWriter);
-    
-    try {
-      process(reader, writer);
-    } catch (IOException e) {
-      // TODO: wrap or treat it
-      throw new RuntimeException(e);
-    }
-    
-    String outputBody = charArrayWriter.toString();
-    System.out.println("input message:\n" + body);
-    System.out.println("output message:\n" + outputBody);
-    
-    return outputBody;
-  }
 
-  private void process(BufferedReader reader, BufferedWriter writer) throws IOException {
-    JsonFactory factory = new JsonFactory();
-    for (String line = reader.readLine(); line != null; line = reader.readLine()) {
-      JsonXContentParser parser = new JsonXContentParser(factory.createJsonParser(line));
-      Map<String, Object> asMap = parser.map();
-      
-      if (asMap.get("create") != null) {
-        // skip "create" operations, header and body
-        reader.readLine();
-      } else {
-        writer.write(line);
-        writer.newLine();
-      }
+    private final ESLogger logger = ESLoggerFactory.getLogger(MockScript.class.getName());
+    private final Map<String, Object> params;
+
+    public MockScript(Map<String, Object> params) {
+        super();
+        this.params = params;
     }
-    writer.flush();
-    writer.close();
-  }
+
+    @Override
+    public void setNextVar(String name, Object value) {
+        params.put(name, value);
+    }
+
+    @Override
+    public Object run() {
+        String body = (String) params.get("body");
+        BufferedReader reader = new BufferedReader(new StringReader(body));
+
+        CharArrayWriter charArrayWriter = new CharArrayWriter();
+        BufferedWriter writer = new BufferedWriter(charArrayWriter);
+
+        try {
+            process(reader, writer);
+        } catch (IOException e) {
+            // TODO: wrap or treat it
+            throw new RuntimeException(e);
+        }
+
+        String outputBody = charArrayWriter.toString();
+        logger.debug("input message: {}", body);
+        logger.debug("output message: {}", outputBody);
+
+        return outputBody;
+    }
+
+    private void process(BufferedReader reader, BufferedWriter writer) throws IOException {
+        JsonFactory factory = new JsonFactory();
+        for (String header = reader.readLine(); header != null; header = reader.readLine()) {
+            String content = null;
+            JsonXContentParser parser = new JsonXContentParser(factory.createJsonParser(header));
+            Map<String, Object> headerAsMap = parser.map();
+
+            if (headerAsMap.containsKey("create") ||
+                    headerAsMap.containsKey("index") ||
+                    headerAsMap.containsKey("update")) {
+                // skip "create" operations, header and body
+                content = reader.readLine();
+
+                JsonXContentParser contentParser = new JsonXContentParser(factory.createJsonParser(content));
+                Map<String, Object> contentAsMap = contentParser.map();
+
+                Object numeric = contentAsMap.get("numeric");
+                if (numeric != null) {
+                    if (numeric instanceof Integer) {
+                        Integer integer = (Integer) numeric;
+                        contentAsMap.put("numeric", ++integer);
+
+                        content = XContentFactory.jsonBuilder().map(contentAsMap).string();
+                    } else {
+                        logger.warn("We don't know what to do with that numeric value: {}", numeric.getClass().getName());
+                    }
+                }
+            } else if (headerAsMap.containsKey("delete")) {
+                // No content line
+            } else {
+                // That's bad. We don't know what to do :(
+                logger.warn("We don't know what to do with that line: {}", header);
+            }
+            writer.write(header);
+            writer.newLine();
+            if (content != null) {
+                writer.write(content);
+                writer.newLine();
+            }
+        }
+        writer.flush();
+        writer.close();
+    }
 }
