@@ -56,7 +56,6 @@ curl -XPUT 'localhost:9200/_river/my_river/_meta' -d '{
     },
     "index" : {
         "bulk_size" : 100,
-        "bulk_timeout" : "10ms",
         "ordered" : false,
         "replication" : "default"
     }
