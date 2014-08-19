@@ -2,24 +2,6 @@ RabbitMQ River Plugin for Elasticsearch
 ==================================
 
 The RabbitMQ River plugin allows index [bulk format messages](http://www.elasticsearch.org/guide/reference/api/bulk/) into elasticsearch.
-
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-river-rabbitmq/2.0.0`.
-
-* For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/master).
-* For 1.2.x elasticsearch versions, look at [es-1.2 branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-1.2).
-* For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-1.1).
-* For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-1.0).
-* For 0.90.x elasticsearch versions, look at [es-0.90 branch](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-0.90).
-
-
-|    RabbitMQ River Plugin   |    elasticsearch    | RabbitMQ Client | Release date |
-|----------------------------|---------------------|-----------------|:------------:|
-| 3.0.0-SNAPSHOT             | master              |    3.3.4        |  XXXX-XX-XX  |
-
-Please read documentation relative to the version you are using:
-
-* [3.0.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/blob/master/README.md)
-
 RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.com/) queue. The format of the messages follows the bulk api format:
 
 ```javascript
@@ -29,6 +11,33 @@ RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.co
 { "create" : { "_index" : "twitter", "_type" : "tweet", "_id" : "1" } }
 { "tweet" : { "text" : "another tweet" } }
 ```
+
+In order to install the plugin, run: 
+
+```sh
+bin/plugin -install elasticsearch/elasticsearch-river-rabbitmq/2.0.0
+```
+
+You need to install a version matching your Elasticsearch version:
+
+|       Elasticsearch    | RabbitMQ River    |                                                             Docs                                                                   |
+|------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
+|    master              | Build from source | See below                                                                                                                          |
+|    es-1.2              | Build from source | [2.2.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-1.2/#version-220-snapshot-for-elasticsearch-12)  |
+|    es-1.1              |     2.0.0         | [2.0.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/v2.0.0/#rabbitmq-river-plugin-for-elasticsearch)  |
+|    es-1.0              |     2.0.0         | [2.0.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/v2.0.0/#rabbitmq-river-plugin-for-elasticsearch)  |
+|    es-0.90             |     1.6.0         | [1.6.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/v1.6.0/#rabbitmq-river-plugin-for-elasticsearch)  |
+
+To build a `SNAPSHOT` version, you need to build it with Maven:
+
+```bash
+mvn clean install
+plugin --install river-rabbitmq \ 
+       --url file:target/releases/elasticsearch-river-rabbitmq-X.X.X-SNAPSHOT.zip
+```
+
+Create river
+------------
 
 Creating the rabbitmq river is as simple as (all configuration parameters are provided, with default values):
 
