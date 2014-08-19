@@ -24,6 +24,7 @@ import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
@@ -240,6 +241,7 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-river-rabbitmq/issues/71")
     public void testInlineScript() throws Exception {
         launchTest(jsonBuilder()
                 .startObject()
@@ -305,6 +307,7 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-river-rabbitmq/issues/71")
     public void testBothScript() throws Exception {
         launchTest(jsonBuilder()
                 .startObject()
