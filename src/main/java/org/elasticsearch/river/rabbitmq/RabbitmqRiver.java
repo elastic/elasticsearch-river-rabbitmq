@@ -218,7 +218,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
         if (settings.settings().containsKey("script_filter")) {
             Map<String, Object> scriptSettings = (Map<String, Object>) settings.settings().get("script_filter");
             if (scriptSettings.containsKey("script")) {
-                String scriptLang = "mvel";
+                String scriptLang = "groovy";
                 if(scriptSettings.containsKey("script_lang")) {
                     scriptLang = scriptSettings.get("script_lang").toString();
                 }
