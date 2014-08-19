@@ -23,6 +23,7 @@ You need to install a version matching your Elasticsearch version:
 |       Elasticsearch    | RabbitMQ River    |                                                             Docs                                                                   |
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
+|    es-1.3              | Build from source | [2.3.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-1.3/#version-230-snapshot-for-elasticsearch-13)  |
 |    es-1.2              | Build from source | [2.2.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-1.2/#version-220-snapshot-for-elasticsearch-12)  |
 |    es-1.1              |     2.0.0         | [2.0.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/v2.0.0/#rabbitmq-river-plugin-for-elasticsearch)  |
 |    es-1.0              |     2.0.0         | [2.0.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/v2.0.0/#rabbitmq-river-plugin-for-elasticsearch)  |
