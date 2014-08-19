@@ -69,6 +69,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final boolean rabbitExchangeDeclare;
     private final boolean rabbitQueueDurable;
     private final boolean rabbitQueueAutoDelete;
+    private final int rabbitQosPrefetchSize;
+    private final int rabbitQosPrefetchCount;
     private Map rabbitQueueArgs = null; //extra arguments passed to queue for creation (ha settings for example)
     private final TimeValue rabbitHeartbeat;
     private final boolean rabbitNackErrors;
@@ -181,7 +183,16 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             ordered = false;
             replicationType = ReplicationType.DEFAULT;
         }
-        
+
+        if (settings.settings().containsKey("rabbitmq")) {
+            Map<String, Object> rabbitSettings = (Map<String, Object>) settings.settings().get("rabbitmq");
+            rabbitQosPrefetchSize = XContentMapValues.nodeIntegerValue(rabbitSettings.get("qos_prefetch_size"), 0);
+            rabbitQosPrefetchCount = XContentMapValues.nodeIntegerValue(rabbitSettings.get("qos_prefetch_count"), bulkSize * 2);
+        } else {
+            rabbitQosPrefetchSize = 0;
+            rabbitQosPrefetchCount = bulkSize * 2;
+        }
+
         if (settings.settings().containsKey("bulk_script_filter")) {
             Map<String, Object> scriptSettings = (Map<String, Object>) settings.settings().get("bulk_script_filter");
             if (scriptSettings.containsKey("script")) {
@@ -294,6 +305,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                         // only bind queue if we should
                         channel.queueBind(rabbitQueue/*queue*/, rabbitExchange/*exchange*/, rabbitRoutingKey/*routingKey*/);
                     }
+                    channel.basicQos(rabbitQosPrefetchSize/*qos_prefetch_size*/, rabbitQosPrefetchCount/*qos_prefetch_count*/, false);
                     channel.basicConsume(rabbitQueue/*queue*/, false/*noAck*/, consumer);
                 } catch (Exception e) {
                     if (!closed) {
