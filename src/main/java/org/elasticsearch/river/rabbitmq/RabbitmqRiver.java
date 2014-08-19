@@ -206,7 +206,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 } else {
                     scriptParams = Maps.newHashMap();
                 }
-                bulkScript = scriptService.executable(scriptLang, scriptSettings.get("script").toString(), scriptParams);
+                bulkScript = scriptService.executable(scriptLang, scriptSettings.get("script").toString(),
+                        ScriptService.ScriptType.INLINE, scriptParams);
             } else {
                 bulkScript = null;
             }
@@ -227,7 +228,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 } else {
                     scriptParams = Maps.newHashMap();
                 }
-                script = scriptService.executable(scriptLang, scriptSettings.get("script").toString(), scriptParams);
+                script = scriptService.executable(scriptLang, scriptSettings.get("script").toString(),
+                        ScriptService.ScriptType.INLINE, scriptParams);
             } else {
                 script = null;
             }
