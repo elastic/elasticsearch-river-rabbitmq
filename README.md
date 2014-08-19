@@ -12,11 +12,7 @@ RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.co
 { "tweet" : { "text" : "another tweet" } }
 ```
 
-<<<<<<< HEAD
 In order to install the plugin, run: 
-=======
-## Version 2.4.0-SNAPSHOT for Elasticsearch: 1.x
->>>>>>> fa8466c... Update to elasticsearch 1.4.0
 
 ```sh
 bin/plugin -install elasticsearch/elasticsearch-river-rabbitmq/2.0.0
