@@ -15,7 +15,7 @@ RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.co
 In order to install the plugin, run: 
 
 ```sh
-bin/plugin -install elasticsearch/elasticsearch-river-rabbitmq/2.3.0
+bin/plugin -install elasticsearch/elasticsearch-river-rabbitmq/2.4.0
 ```
 
 You need to install a version matching your Elasticsearch version:
@@ -23,7 +23,8 @@ You need to install a version matching your Elasticsearch version:
 |       Elasticsearch    | RabbitMQ River    |                                                             Docs                                                                   |
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
-|    es-1.x              | Build from source | [2.4.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-1.x/#version-240-snapshot-for-elasticsearch-1x)  |
+|    es-1.x              | Build from source | [2.4.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/es-1.x/#version-250-snapshot-for-elasticsearch-1x)  |
+|    es-1.4              |     2.4.0         | [2.3.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/v2.4.0/#version-240-for-elasticsearch-14)                  |
 |    es-1.3              |     2.3.0         | [2.3.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/v2.3.0/#version-230-for-elasticsearch-13)                  |
 |    es-1.2              |     2.2.0         | [2.2.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/v2.2.0/#version-220-for-elasticsearch-12)                  |
 |    es-1.1              |     2.0.0         | [2.0.0](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/tree/v2.0.0/#rabbitmq-river-plugin-for-elasticsearch)  |
