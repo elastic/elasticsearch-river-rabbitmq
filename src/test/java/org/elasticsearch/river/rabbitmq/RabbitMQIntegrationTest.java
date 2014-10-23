@@ -140,15 +140,18 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                 StringBuffer message = new StringBuffer();
 
                 for (int j = 0; j < numDocsPerMessage; j++) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("  -> Indexing document [{}] - [{}][{}]", i + "_" + j, i, j);
+                    }
                     message.append("{ \"index\" : { \"_index\" : \"" +  dbName + "\", \"_type\" : \"typex\", \"_id\" : \""+ i + "_" + j +"\" } }\n");
                     message.append("{ \"field\" : \"" + i + "_" + j + "\",\"numeric\" : " + i * j + " }\n");
 
                     // Sometime we update a document
                     if (update && rarely()) {
-                        String id = i + "_" + between(0, j);
+                        String id = between(0, i) + "_" + between(0, j);
                         // We can only update if it has not been removed :)
                         if (!removed.contains(id)) {
-                            logger.debug("  -> Updating message [{}] - [{}][{}]", id, i, j);
+                            logger.debug("  -> Updating document [{}] - [{}][{}]", id, i, j);
                             message.append("{ \"update\" : { \"_index\" : \"" + dbName + "\", \"_type\" : \"typex\", \"_id\" : \""+ id +"\" } }\n");
                             message.append("{ \"doc\": { \"foo\" : \"bar\", \"field2\" : \"" + i + "_" + j + "\" }}\n");
                             nbUpdated++;
@@ -157,9 +160,9 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
 
                     // Sometime we delete a document
                     if (delete && rarely()) {
-                        String id = i + "_" + between(0, j);
+                        String id = between(0, i) + "_" + between(0, j);
                         if (!removed.contains(id)) {
-                            logger.debug("  -> Removing message [{}] - [{}][{}]", id, i, j);
+                            logger.debug("  -> Removing document [{}] - [{}][{}]", id, i, j);
                             message.append("{ \"delete\" : { \"_index\" : \"" + dbName + "\", \"_type\" : \"typex\", \"_id\" : \""+ id +"\" } }\n");
                             removed.add(id);
                         }
@@ -236,6 +239,9 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                     .startObject("rabbitmq")
                         .field("queue", getDbName())
                     .endObject()
+                    .startObject("index")
+                        .field("ordered", true)
+                    .endObject()
                 .endObject(), randomIntBetween(1, 10), randomIntBetween(1, 500), null, true, true);
     }
 
@@ -249,6 +255,7 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                     .endObject()
                     .startObject("index")
                         .field("replication", "async")
+                        .field("ordered", true)
                     .endObject()
                 .endObject(), randomIntBetween(1, 10), randomIntBetween(1, 500), null, true, true);
     }
@@ -262,6 +269,9 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                         .field("queue", getDbName())
                         .field("heartbeat", "100ms")
                     .endObject()
+                    .startObject("index")
+                        .field("ordered", true)
+                    .endObject()
                 .endObject(), randomIntBetween(1, 10), randomIntBetween(1, 500), null, true, true);
     }
 
@@ -273,6 +283,9 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                     .startObject("rabbitmq")
                         .field("queue", getDbName())
                         .field("num_consumers", 5)
+                    .endObject()
+                    .startObject("index")
+                        .field("ordered", true)
                     .endObject()
                 .endObject(), randomIntBetween(5, 20), randomIntBetween(100, 1000), null, false, false);
     }
@@ -290,6 +303,9 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                         .startObject("script_params")
                             .field("param1", 1)
                         .endObject()
+                    .endObject()
+                    .startObject("index")
+                        .field("ordered", true)
                     .endObject()
                 .endObject(), 3, 10, null, true, true);
 
@@ -322,6 +338,9 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                     .startObject("bulk_script_filter")
                         .field("script", "mock_script")
                         .field("script_lang", "native")
+                    .endObject()
+                    .startObject("index")
+                        .field("ordered", true)
                     .endObject()
                 .endObject(), 3, 10, null, true, true);
 
@@ -359,6 +378,9 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                     .startObject("bulk_script_filter")
                         .field("script", "mock_script")
                         .field("script_lang", "native")
+                    .endObject()
+                    .startObject("index")
+                        .field("ordered", true)
                     .endObject()
                 .endObject(), 3, 10, null, true, true);
 
