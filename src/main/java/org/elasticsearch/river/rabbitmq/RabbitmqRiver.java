@@ -42,7 +42,9 @@ import org.elasticsearch.river.RiverSettings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -446,8 +448,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                     @Override
                                     public void onResponse(BulkResponse response) {
                                         if (response.hasFailures()) {
-                                          // TODO write to exception queue?
-                                          logger.warn("failed to execute" + response.buildFailureMessage());
+                                            // TODO write to exception queue?
+                                            logger.warn("failed to execute" + response.buildFailureMessage());
                                         }
                                         for (Long deliveryTag : deliveryTags) {
                                             try {
@@ -457,7 +459,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                             }
                                         }
                                     }
-                                    
+
                                     @Override
                                     public void onFailure(Throwable e) {
                                         if (rabbitNackErrors) {
