@@ -31,9 +31,9 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>1.4.0.Beta1</elasticsearch.version>
+        <elasticsearch.version>1.4.0-SNAPSHOT</elasticsearch.version>
         <amqp-client.version>3.3.4</amqp-client.version>
-        <lucene.version>4.10.1</lucene.version>
+        <lucene.version>4.10.2</lucene.version>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
