@@ -348,6 +348,41 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testInlineScriptWithAdditionalInfos() throws Exception {
+        launchTest(jsonBuilder()
+                    .startObject()
+                        .field("type", "rabbitmq")
+                        .startObject("rabbitmq")
+                            .field("queue", getDbName())
+                        .endObject()
+                        .startObject("script_filter")
+                            .field("script", "ctx.bulkindextype = _index + '#' + _type; ctx.lengthid = (_id != null ? _id.length() : 0)")
+                        .endObject()
+                        .startObject("index")
+                            .field("ordered", true)
+                        .endObject()
+                    .endObject(), 3, 10, null, true, true);
+
+        // We should have data we don't have without raw set to true
+        SearchResponse response = client().prepareSearch(getDbName())
+                .addField("bulkindextype")
+                .addField("lengthid")
+                .get();
+
+        logger.info("  --> Search response: {}", response.toString());
+
+        for (SearchHit hit : response.getHits().getHits()) {
+            assertThat(hit.field("bulkindextype"), notNullValue());
+            assertThat(hit.field("bulkindextype").<String>getValue(), equalTo(hit.getIndex() + "#" + hit.getType()));
+
+            assertThat(hit.field("lengthid"), notNullValue());
+            assertThat(hit.field("lengthid").getValue(), instanceOf(Integer.class));
+            assertThat(hit.field("lengthid").<Integer>getValue(), equalTo(hit.getId().length()));
+        }
+
+    }
+
+    @Test
     public void testNativeScript() throws Exception {
         launchTest(jsonBuilder()
                 .startObject()
