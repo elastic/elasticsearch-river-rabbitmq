@@ -46,6 +46,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,6 +54,8 @@ import java.util.Map;
  *
  */
 public class RabbitmqRiver extends AbstractRiverComponent implements River {
+
+    private static final Map<String, String> AUTHORIZED_SCRIPT_VARS;
 
     private final Client client;
 
@@ -90,6 +93,23 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private volatile Thread thread;
 
     private volatile ConnectionFactory connectionFactory;
+
+    static {
+        AUTHORIZED_SCRIPT_VARS = new HashMap<String, String>();
+        AUTHORIZED_SCRIPT_VARS.put("_index", "_index");
+        AUTHORIZED_SCRIPT_VARS.put("_type", "_type");
+        AUTHORIZED_SCRIPT_VARS.put("_id", "_id");
+        AUTHORIZED_SCRIPT_VARS.put("_version", "_version");
+        AUTHORIZED_SCRIPT_VARS.put("version", "_version");
+        AUTHORIZED_SCRIPT_VARS.put("_routing", "_routing");
+        AUTHORIZED_SCRIPT_VARS.put("routing", "_routing");
+        AUTHORIZED_SCRIPT_VARS.put("_parent", "_parent");
+        AUTHORIZED_SCRIPT_VARS.put("parent", "_parent");
+        AUTHORIZED_SCRIPT_VARS.put("_timestamp", "_timestamp");
+        AUTHORIZED_SCRIPT_VARS.put("timestamp", "_timestamp");
+        AUTHORIZED_SCRIPT_VARS.put("_ttl", "_ttl");
+        AUTHORIZED_SCRIPT_VARS.put("ttl", "_ttl");
+    }
 
     @SuppressWarnings({"unchecked"})
     @Inject
@@ -544,7 +564,29 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                         logger.warn("failed to parse {}", e, payload);
                         continue;
                     }
+
+                    // Sets some vars
                     script.setNextVar("ctx", ctx);
+
+                    if (!asMap.isEmpty()) {
+                        for (Map.Entry<String, Object> bulkItem : asMap.entrySet()) {
+                            String action = bulkItem.getKey().toLowerCase();
+                            if ("index".equals(action) || "update".equals(action) || "create".equals(action)) {
+                                script.setNextVar("_action", action);
+
+                                Object bulkData = bulkItem.getValue();
+                                if ((bulkData != null) && (bulkData instanceof Map)) {
+                                    Map bulkItemMap = ((Map) bulkData);
+                                    for(Object dataKey : bulkItemMap.keySet()) {
+                                        if (AUTHORIZED_SCRIPT_VARS.containsKey(dataKey)) {
+                                            script.setNextVar(AUTHORIZED_SCRIPT_VARS.get(dataKey), bulkItemMap.get(dataKey));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     script.run();
                     ctx = (Map<String, Object>) script.unwrap(ctx);
                     if (ctx != null) {
