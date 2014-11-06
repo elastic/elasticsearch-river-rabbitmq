@@ -545,6 +545,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                         continue;
                     }
                     script.setNextVar("ctx", ctx);
+                    script.setNextVar("action", asMap);
                     script.run();
                     ctx = (Map<String, Object>) script.unwrap(ctx);
                     if (ctx != null) {
