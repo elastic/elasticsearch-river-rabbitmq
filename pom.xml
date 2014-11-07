@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-river-rabbitmq</artifactId>
-    <version>2.4.1-SNAPSHOT</version>
+    <version>2.4.1</version>
     <packaging>jar</packaging>
     <name>Elasticsearch RabbitMQ River plugin</name>
     <description>The RabbitMQ River plugin allows index bulk format messages into elasticsearch.</description>
