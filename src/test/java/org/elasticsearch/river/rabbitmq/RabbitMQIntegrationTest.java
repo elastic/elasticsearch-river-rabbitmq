@@ -38,6 +38,7 @@ import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.river.rabbitmq.script.MockScriptFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
 
 import java.net.ConnectException;
@@ -74,6 +75,25 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                 .put("script.native.mock_script.type", MockScriptFactory.class)
                 .put("threadpool.bulk.queue_size", 200)
                 .build();
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return ImmutableSettings.builder()
+                .put(super.indexSettings())
+                .put(MockDirectoryHelper.RANDOM_PREVENT_DOUBLE_WRITE, false)
+                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)
+                .build();
+    }
+
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
+    }
+
+    @Override
+    protected int numberOfShards() {
+        return 1;
     }
 
     private String getDbName() {
