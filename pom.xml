@@ -31,7 +31,7 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>1.4.0-SNAPSHOT</elasticsearch.version>
+        <elasticsearch.version>1.4.0</elasticsearch.version>
         <amqp-client.version>3.3.4</amqp-client.version>
         <lucene.version>4.10.2</lucene.version>
         <tests.shuffle>true</tests.shuffle>
