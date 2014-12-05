@@ -24,6 +24,7 @@ import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -98,7 +99,11 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
 
     private String getDbName() {
         String testName = testDbPrefix.concat(Strings.toUnderscoreCase(getTestName()));
-        return testName.indexOf(" ") >= 0? Strings.split(testName, " ")[0] : testName;
+        if (testName.contains(" ")) {
+            testName = Strings.split(testName, " ")[0];
+        }
+        testName += testName.concat("_").concat(Version.CURRENT.number().replace('.', '_'));
+        return testName;
     }
 
     private void launchTest(XContentBuilder river,
