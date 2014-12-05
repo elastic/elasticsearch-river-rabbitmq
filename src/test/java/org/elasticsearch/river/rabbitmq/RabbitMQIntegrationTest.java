@@ -25,19 +25,23 @@ import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.river.rabbitmq.script.MockScriptFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
 
+import java.net.ConnectException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -73,6 +77,25 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                 .build();
     }
 
+    @Override
+    public Settings indexSettings() {
+        return ImmutableSettings.builder()
+                .put(super.indexSettings())
+                .put(MockDirectoryHelper.RANDOM_PREVENT_DOUBLE_WRITE, false)
+                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)
+                .build();
+    }
+
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
+    }
+
+    @Override
+    protected int numberOfShards() {
+        return 1;
+    }
+
     private String getDbName() {
         String testName = testDbPrefix.concat(Strings.toUnderscoreCase(getTestName()));
         return testName.indexOf(" ") >= 0? Strings.split(testName, " ")[0] : testName;
@@ -86,6 +109,21 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                             boolean update
                             )
             throws Exception {
+
+        final String dbName = getDbName();
+        logger.info(" --> create index [{}]", dbName);
+        try {
+            client().admin().indices().prepareDelete(dbName).get();
+        } catch (IndexMissingException e) {
+            // No worries.
+        }
+        try {
+            createIndex(dbName);
+        } catch (IndexMissingException e) {
+            // No worries.
+        }
+        ensureGreen(dbName);
+
         logger.info("  -> Checking rabbitmq running");
         // We try to connect to RabbitMQ.
         // If it's not launched, we don't fail the test but only log it
@@ -97,15 +135,21 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
             factory.setHost("localhost");
             factory.setPort(AMQP.PROTOCOL.PORT);
             connection = factory.newConnection();
+        } catch (ConnectException ce) {
+            throw new Exception("RabbitMQ service is not launched on localhost:" + AMQP.PROTOCOL.PORT +
+                    ". Can not start Integration test. " +
+                    "Launch `rabbitmq-server`.", ce);
+        }
 
-            logger.info("  -> Creating [{}] channel", getDbName());
+        try {
+            logger.info("  -> Creating [{}] channel", dbName);
             channel = connection.createChannel();
 
-            logger.info("  -> Creating queue [{}]", getDbName());
+            logger.info("  -> Creating queue [{}]", dbName);
             channel.queueDeclare(getDbName(), true, false, false, null);
 
             // We purge the queue in case of something is remaining there
-            logger.info("  -> Purging [{}] channel", getDbName());
+            logger.info("  -> Purging [{}] channel", dbName);
             channel.queuePurge(getDbName());
 
             logger.info("  -> Put [{}] messages with [{}] documents each = [{}] docs", numMessages, numDocsPerMessage,
@@ -116,7 +160,10 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                 StringBuffer message = new StringBuffer();
 
                 for (int j = 0; j < numDocsPerMessage; j++) {
-                    message.append("{ \"index\" : { \"_index\" : \""+getDbName()+"\", \"_type\" : \"typex\", \"_id\" : \""+ i + "_" + j +"\" } }\n");
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("  -> Indexing document [{}] - [{}][{}]", i + "_" + j, i, j);
+                    }
+                    message.append("{ \"index\" : { \"_index\" : \"" +  dbName + "\", \"_type\" : \"typex\", \"_id\" : \""+ i + "_" + j +"\" } }\n");
                     message.append("{ \"field\" : \"" + i + "_" + j + "\",\"numeric\" : " + i * j + " }\n");
 
                     // Sometime we update a document
@@ -124,8 +171,8 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                         String id = between(0, i) + "_" + between(0, j);
                         // We can only update if it has not been removed :)
                         if (!removed.contains(id)) {
-                            logger.debug("  -> Updating message [{}] - [{}][{}]", id, i, j);
-                            message.append("{ \"update\" : { \"_index\" : \""+getDbName()+"\", \"_type\" : \"typex\", \"_id\" : \""+ id +"\" } }\n");
+                            logger.debug("  -> Updating document [{}] - [{}][{}]", id, i, j);
+                            message.append("{ \"update\" : { \"_index\" : \"" + dbName + "\", \"_type\" : \"typex\", \"_id\" : \""+ id +"\" } }\n");
                             message.append("{ \"doc\": { \"foo\" : \"bar\", \"field2\" : \"" + i + "_" + j + "\" }}\n");
                             nbUpdated++;
                         }
@@ -135,14 +182,14 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                     if (delete && rarely()) {
                         String id = between(0, i) + "_" + between(0, j);
                         if (!removed.contains(id)) {
-                            logger.debug("  -> Removing message [{}] - [{}][{}]", id, i, j);
-                            message.append("{ \"delete\" : { \"_index\" : \""+getDbName()+"\", \"_type\" : \"typex\", \"_id\" : \""+ id +"\" } }\n");
+                            logger.debug("  -> Removing document [{}] - [{}][{}]", id, i, j);
+                            message.append("{ \"delete\" : { \"_index\" : \"" + dbName + "\", \"_type\" : \"typex\", \"_id\" : \""+ id +"\" } }\n");
                             removed.add(id);
                         }
                     }
                 }
 
-                channel.basicPublish("", getDbName(), null, message.toString().getBytes());
+                channel.basicPublish("", dbName, null, message.toString().getBytes());
             }
 
             logger.info("  -> We removed [{}] docs and updated [{}] docs", removed.size(), nbUpdated);
@@ -152,15 +199,18 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                 injectorHook.inject();
             }
 
-            logger.info(" --> create index [{}]", getDbName());
-            try {
-                createIndex(getDbName());
-            } catch (IndexAlreadyExistsException e) {
-                // No worries. We already created the index before
-            }
-
             logger.info(" --> create river");
-            index("_river", getDbName(), "_meta", river);
+            IndexResponse indexResponse = index("_river", dbName, "_meta", river);
+            assertTrue(indexResponse.isCreated());
+
+            logger.info("-->  checking that river [{}] was created", dbName);
+            assertThat(awaitBusy(new Predicate<Object>() {
+                public boolean apply(Object obj) {
+                    GetResponse response = client().prepareGet(RiverIndexName.Conf.DEFAULT_INDEX_NAME, dbName, "_status").get();
+                    return response.isExists();
+                }
+            }, 5, TimeUnit.SECONDS), equalTo(true));
+
 
             // Check that docs are still processed by the river
             logger.info(" --> waiting for expected number of docs: [{}]", numDocsPerMessage * numMessages - removed.size());
@@ -168,18 +218,15 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                 public boolean apply(Object obj) {
                     try {
                         refresh();
-                        CountResponse response = client().prepareCount(getDbName()).get();
-                        logger.debug("  -> got {} docs", response.getCount());
-                        return response.getCount() == numDocsPerMessage * numMessages - removed.size();
+                        int expected = numDocsPerMessage * numMessages - removed.size();
+                        CountResponse response = client().prepareCount(dbName).get();
+                        logger.debug("  -> got {} docs, expected {}", response.getCount(), expected);
+                        return response.getCount() == expected;
                     } catch (IndexMissingException e) {
                         return false;
                     }
                 }
             }, 20, TimeUnit.SECONDS), equalTo(true));
-        } catch (Throwable e) {
-            throw new Exception("RabbitMQ service is not launched on localhost:" + AMQP.PROTOCOL.PORT +
-                    ". Can not start Integration test. " +
-                    "Launch `rabbitmq-server`.", e);
         } finally {
             if (channel != null && channel.isOpen()) {
                 channel.close();
@@ -187,6 +234,20 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
             if (connection != null && connection.isOpen()) {
                 connection.close();
             }
+
+            // Deletes the river
+            GetResponse response = client().prepareGet(RiverIndexName.Conf.DEFAULT_INDEX_NAME, dbName, "_status").get();
+            if (response.isExists()) {
+                client().prepareDelete(RiverIndexName.Conf.DEFAULT_INDEX_NAME, dbName, "_meta").get();
+                client().prepareDelete(RiverIndexName.Conf.DEFAULT_INDEX_NAME, dbName, "_status").get();
+            }
+
+            assertThat(awaitBusy(new Predicate<Object>() {
+                public boolean apply(Object obj) {
+                    GetResponse response = client().prepareGet(RiverIndexName.Conf.DEFAULT_INDEX_NAME, dbName, "_status").get();
+                    return response.isExists();
+                }
+            }, 5, TimeUnit.SECONDS), equalTo(false));
         }
     }
 
@@ -197,6 +258,9 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                     .field("type", "rabbitmq")
                     .startObject("rabbitmq")
                         .field("queue", getDbName())
+                    .endObject()
+                    .startObject("index")
+                        .field("ordered", true)
                     .endObject()
                 .endObject(), randomIntBetween(1, 10), randomIntBetween(1, 500), null, true, true);
     }
@@ -211,6 +275,7 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                     .endObject()
                     .startObject("index")
                         .field("replication", "async")
+                        .field("ordered", true)
                     .endObject()
                 .endObject(), randomIntBetween(1, 10), randomIntBetween(1, 500), null, true, true);
     }
@@ -224,6 +289,9 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                         .field("queue", getDbName())
                         .field("heartbeat", "100ms")
                     .endObject()
+                    .startObject("index")
+                        .field("ordered", true)
+                    .endObject()
                 .endObject(), randomIntBetween(1, 10), randomIntBetween(1, 500), null, true, true);
     }
 
@@ -235,6 +303,9 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                     .startObject("rabbitmq")
                         .field("queue", getDbName())
                         .field("num_consumers", 5)
+                    .endObject()
+                    .startObject("index")
+                        .field("ordered", true)
                     .endObject()
                 .endObject(), randomIntBetween(5, 20), randomIntBetween(100, 1000), null, false, false);
     }
@@ -248,10 +319,13 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                         .field("queue", getDbName())
                     .endObject()
                     .startObject("script_filter")
-                        .field("script", "ctx.numeric += param1")
+                        .field("script", " if (ctx.numeric != null) {ctx.numeric += param1}")
                         .startObject("script_params")
                             .field("param1", 1)
                         .endObject()
+                    .endObject()
+                    .startObject("index")
+                        .field("ordered", true)
                     .endObject()
                 .endObject(), 3, 10, null, true, true);
 
@@ -285,6 +359,9 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                         .field("script", "mock_script")
                         .field("script_lang", "native")
                     .endObject()
+                    .startObject("index")
+                        .field("ordered", true)
+                    .endObject()
                 .endObject(), 3, 10, null, true, true);
 
         // We should have data we don't have without raw set to true
@@ -313,7 +390,7 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                         .field("queue", getDbName())
                     .endObject()
                     .startObject("script_filter")
-                        .field("script", "ctx.numeric += param1")
+                        .field("script", "if (ctx.numeric != null) {ctx.numeric += param1}")
                         .startObject("script_params")
                             .field("param1", 1)
                         .endObject()
@@ -321,6 +398,9 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                     .startObject("bulk_script_filter")
                         .field("script", "mock_script")
                         .field("script_lang", "native")
+                    .endObject()
+                    .startObject("index")
+                        .field("ordered", true)
                     .endObject()
                 .endObject(), 3, 10, null, true, true);
 
