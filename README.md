@@ -12,7 +12,7 @@ RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.co
 { "tweet" : { "text" : "another tweet" } }
 ```
 
-## Version 2.5.0-SNAPSHOT for Elasticsearch: 1.x
+## Version 2.6.0-SNAPSHOT for Elasticsearch: 1.x
 
 If you are looking for another version documentation, please refer to the 
 [compatibility matrix](https://github.com/elasticsearch/elasticsearch-river-rabbitmq/#rabbitmq-river-plugin-for-elasticsearch).
