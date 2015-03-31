@@ -270,7 +270,8 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
                 .endObject(), randomIntBetween(1, 10), randomIntBetween(1, 500), null, true, true);
     }
 
-    @Test
+    // TODO Remove in 3.0.0
+    @Test @Deprecated
     public void testAsyncReplication() throws Exception {
         launchTest(jsonBuilder()
                 .startObject()
