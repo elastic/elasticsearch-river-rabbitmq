@@ -70,7 +70,7 @@ public class MockScript extends AbstractExecutableScript {
         JsonFactory factory = new JsonFactory();
         for (String header = reader.readLine(); header != null; header = reader.readLine()) {
             String content = null;
-            JsonXContentParser parser = new JsonXContentParser(factory.createJsonParser(header));
+            JsonXContentParser parser = new JsonXContentParser(factory.createParser(header));
             Map<String, Object> headerAsMap = parser.map();
 
             if (headerAsMap.containsKey("create") ||
@@ -79,7 +79,7 @@ public class MockScript extends AbstractExecutableScript {
                 // skip "create" operations, header and body
                 content = reader.readLine();
 
-                JsonXContentParser contentParser = new JsonXContentParser(factory.createJsonParser(content));
+                JsonXContentParser contentParser = new JsonXContentParser(factory.createParser(content));
                 Map<String, Object> contentAsMap = contentParser.map();
 
                 Object numeric = contentAsMap.get("numeric");
