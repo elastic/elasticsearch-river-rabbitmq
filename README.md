@@ -12,6 +12,9 @@ RabbitMQ River allows to automatically index a [RabbitMQ](http://www.rabbitmq.co
 { "tweet" : { "text" : "another tweet" } }
 ```
 
+**Rivers are [deprecated](https://www.elastic.co/blog/deprecating_rivers) and will be removed in the future.**
+Have a look at [logstash rabbitmq input](http://www.elastic.co/guide/en/logstash/current/plugins-inputs-rabbitmq.html).
+
 In order to install the plugin, run: 
 
 ```sh
