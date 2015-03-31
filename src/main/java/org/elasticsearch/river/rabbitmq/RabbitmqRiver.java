@@ -39,6 +39,7 @@ import org.elasticsearch.river.River;
 import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiverSettings;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.BufferedReader;
@@ -230,7 +231,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                     scriptParams = Maps.newHashMap();
                 }
                 bulkScript = scriptService.executable(scriptLang, scriptSettings.get("script").toString(),
-                        ScriptService.ScriptType.INLINE, scriptParams);
+                        ScriptService.ScriptType.INLINE, ScriptContext.UPDATE, scriptParams);
             } else {
                 bulkScript = null;
             }
@@ -252,7 +253,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                     scriptParams = Maps.newHashMap();
                 }
                 script = scriptService.executable(scriptLang, scriptSettings.get("script").toString(),
-                        ScriptService.ScriptType.INLINE, scriptParams);
+                        ScriptService.ScriptType.INLINE, ScriptContext.UPDATE, scriptParams);
             } else {
                 script = null;
             }
