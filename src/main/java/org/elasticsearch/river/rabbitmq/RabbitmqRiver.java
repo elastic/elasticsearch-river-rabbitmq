@@ -197,11 +197,6 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 bulkTimeout = TimeValue.timeValueMillis(10);
             }
             ordered = XContentMapValues.nodeBooleanValue(indexSettings.get("ordered"), false);
-
-            // TODO Remove in 3.0.0
-            if (indexSettings.get("replication") != null) {
-                logger.warn("replication has been deprecated and will be removed in a future version. Using sync now.");
-            }
         } else {
             bulkSize = 100;
             bulkTimeout = TimeValue.timeValueMillis(10);
