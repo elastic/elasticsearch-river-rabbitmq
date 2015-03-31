@@ -546,7 +546,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
             JsonFactory factory = new JsonFactory();
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
-                JsonXContentParser parser = new JsonXContentParser(factory.createJsonParser(line));
+                JsonXContentParser parser = new JsonXContentParser(factory.createParser(line));
                 Map<String, Object> asMap = parser.map();
 
                 if (asMap.get("delete") != null) {
