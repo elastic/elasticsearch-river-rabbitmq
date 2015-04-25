@@ -539,7 +539,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             if (script != null) {
                 processBodyPerLine(body, bulkRequestBuilder);
             } else {
-                bulkRequestBuilder.add(body, 0, body.length, false);
+                bulkRequestBuilder.add(body, 0, body.length);
             }
         }
 
@@ -554,7 +554,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 if (asMap.get("delete") != null) {
                     // We don't touch deleteRequests
                     String newContent = line + "\n";
-                    bulkRequestBuilder.add(newContent.getBytes(), 0, newContent.getBytes().length, false);
+                    bulkRequestBuilder.add(newContent.getBytes(), 0, newContent.getBytes().length);
                 } else {
                     // But we send other requests to the script Engine in ctx field
                     Map<String, Object> ctx;
@@ -603,7 +603,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                             logger.trace("new bulk request is now: {}", request.toString());
                         }
                         byte[] binRequest = request.toString().getBytes();
-                        bulkRequestBuilder.add(binRequest, 0, binRequest.length, false);
+                        bulkRequestBuilder.add(binRequest, 0, binRequest.length);
                     }
                 }
             }
