@@ -39,6 +39,7 @@ import org.elasticsearch.river.River;
 import org.elasticsearch.river.RiverName;
 import org.elasticsearch.river.RiverSettings;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 
@@ -84,6 +85,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     private final TimeValue bulkTimeout;
     private final boolean ordered;
 
+    private final ScriptService scriptService;
     private final ExecutableScript bulkScript;
     private final ExecutableScript script;
 
@@ -115,6 +117,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
     public RabbitmqRiver(RiverName riverName, RiverSettings settings, Client client, ScriptService scriptService) {
         super(riverName, settings);
         this.client = client;
+        this.scriptService = scriptService;
 
         if (settings.settings().containsKey("rabbitmq")) {
             Map<String, Object> rabbitSettings = (Map<String, Object>) settings.settings().get("rabbitmq");
@@ -212,50 +215,8 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
             rabbitQosPrefetchCount = bulkSize * 2;
         }
 
-        if (settings.settings().containsKey("bulk_script_filter")) {
-            Map<String, Object> scriptSettings = (Map<String, Object>) settings.settings().get("bulk_script_filter");
-            if (scriptSettings.containsKey("script")) {
-                String scriptLang = "native";
-                if(scriptSettings.containsKey("script_lang")) {
-                    scriptLang = scriptSettings.get("script_lang").toString();
-                }
-                Map<String, Object> scriptParams = null;
-                if (scriptSettings.containsKey("script_params")) {
-                    scriptParams = (Map<String, Object>) scriptSettings.get("script_params");
-                } else {
-                    scriptParams = Maps.newHashMap();
-                }
-                bulkScript = scriptService.executable(scriptLang, scriptSettings.get("script").toString(),
-                        ScriptService.ScriptType.INLINE, ScriptContext.UPDATE, scriptParams);
-            } else {
-                bulkScript = null;
-            }
-        } else {
-          bulkScript = null;
-        }
-
-        if (settings.settings().containsKey("script_filter")) {
-            Map<String, Object> scriptSettings = (Map<String, Object>) settings.settings().get("script_filter");
-            if (scriptSettings.containsKey("script")) {
-                String scriptLang = "groovy";
-                if(scriptSettings.containsKey("script_lang")) {
-                    scriptLang = scriptSettings.get("script_lang").toString();
-                }
-                Map<String, Object> scriptParams = null;
-                if (scriptSettings.containsKey("script_params")) {
-                    scriptParams = (Map<String, Object>) scriptSettings.get("script_params");
-                } else {
-                    scriptParams = Maps.newHashMap();
-                }
-                script = scriptService.executable(scriptLang, scriptSettings.get("script").toString(),
-                        ScriptService.ScriptType.INLINE, ScriptContext.UPDATE, scriptParams);
-            } else {
-                script = null;
-            }
-        } else {
-            script = null;
-        }
-
+        bulkScript = buildScript("bulk_script_filter");
+        script = buildScript("script_filter");
     }
 
     @Override
@@ -603,5 +564,33 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 }
             }
         }
+    }
+
+    /**
+     * Build an executable script if provided as settings
+     * @param settingName
+     * @return
+     */
+    private ExecutableScript buildScript(String settingName) {
+        if (settings.settings().containsKey(settingName)) {
+            Map<String, Object> scriptSettings = (Map<String, Object>) settings.settings().get(settingName);
+            if (scriptSettings.containsKey("script")) {
+                String scriptLang = "groovy";
+                if (scriptSettings.containsKey("script_lang")) {
+                    scriptLang = scriptSettings.get("script_lang").toString();
+                }
+                Map<String, Object> scriptParams = null;
+                if (scriptSettings.containsKey("script_params")) {
+                    scriptParams = (Map<String, Object>) scriptSettings.get("script_params");
+                } else {
+                    scriptParams = Maps.newHashMap();
+                }
+                return scriptService.executable(
+                        new Script(scriptLang, scriptSettings.get("script").toString(), ScriptService.ScriptType.INLINE, scriptParams),
+                        ScriptContext.Standard.UPDATE);
+            }
+        }
+
+        return null;
     }
 }
