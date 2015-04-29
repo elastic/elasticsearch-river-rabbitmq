@@ -39,7 +39,7 @@ import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.river.rabbitmq.script.MockScriptFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
 import java.net.ConnectException;
@@ -82,8 +82,8 @@ public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
     public Settings indexSettings() {
         return ImmutableSettings.builder()
                 .put(super.indexSettings())
-                .put(MockDirectoryHelper.RANDOM_PREVENT_DOUBLE_WRITE, false)
-                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)
+                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
+                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
                 .build();
     }
 
