@@ -34,6 +34,7 @@
     <properties>
         <amqp-client.version>3.3.4</amqp-client.version>
         <tests.rabbitmq>false</tests.rabbitmq>
+        <tests.security.manager>true</tests.security.manager>
     </properties>
 
     <dependencies>
