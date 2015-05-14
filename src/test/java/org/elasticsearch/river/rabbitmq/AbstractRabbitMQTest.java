@@ -19,28 +19,16 @@
 
 package org.elasticsearch.river.rabbitmq;
 
-import com.carrotsearch.randomizedtesting.annotations.TestGroup;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ThirdParty;
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.Inherited;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
+/**
+ * Base class for tests that require RabbitMQ to run. RabbitMQ tests are disabled by default.
+ * <p/>
+ * To enable test add -Dtests.thirdparty=true
+ * <p/>
+ */
+@ThirdParty
+public abstract class AbstractRabbitMQTest extends ElasticsearchIntegrationTest {
 
-public class AbstractRabbitMQTest {
-    /**
-     * Annotation for tests that require RabbitMQ to run. RabbitMQ tests are disabled by default.
-     * <p/>
-     * To enable test add -Dtests.rabbitmq=true
-     * <p/>
-     */
-    @Documented
-    @Inherited
-    @Retention(RetentionPolicy.RUNTIME)
-    @TestGroup(enabled = false, sysProperty = SYSPROP_RABBITMQ)
-    public @interface RabbitMQTest {
-    }
-
-    /**
-     */
-    public static final String SYSPROP_RABBITMQ = "tests.rabbitmq";
 }

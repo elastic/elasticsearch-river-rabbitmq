@@ -60,8 +60,7 @@ import static org.hamcrest.Matchers.equalTo;
         numDataNodes = 1,
         numClientNodes = 0,
         transportClientRatio = 0.0)
-@AbstractRabbitMQTest.RabbitMQTest
-public class RabbitMQIntegrationTest extends ElasticsearchIntegrationTest {
+public class RabbitMQIntegrationTest extends AbstractRabbitMQTest {
 
     private interface InjectorHook {
         public void inject();
