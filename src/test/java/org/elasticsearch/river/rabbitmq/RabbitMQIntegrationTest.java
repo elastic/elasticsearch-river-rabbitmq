@@ -24,6 +24,7 @@ import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -43,6 +44,7 @@ import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
 import java.net.ConnectException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -193,7 +195,7 @@ public class RabbitMQIntegrationTest extends AbstractRabbitMQTest {
                     }
                 }
 
-                channel.basicPublish("", dbName, null, message.toString().getBytes());
+                channel.basicPublish("", dbName, null, message.toString().getBytes(StandardCharsets.UTF_8));
             }
 
             logger.info("  -> We removed [{}] docs and updated [{}] docs", removed.size(), nbUpdated);

@@ -20,6 +20,7 @@
 package org.elasticsearch.river.rabbitmq;
 
 import com.rabbitmq.client.*;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -27,6 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.jackson.core.JsonFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -46,9 +48,11 @@ import org.elasticsearch.script.ScriptService;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -484,11 +488,11 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
             // first, the "full bulk" script
             if (bulkScript != null) {
-                String bodyStr = new String(body);
+                String bodyStr = new String(body, StandardCharsets.UTF_8);
                 bulkScript.setNextVar("body", bodyStr);
                 String newBodyStr = (String) bulkScript.run();
                 if (newBodyStr == null) return ;
-                body =  newBodyStr.getBytes();
+                body =  newBodyStr.getBytes(StandardCharsets.UTF_8);
             }
 
             // second, the "doc per doc" script
@@ -500,7 +504,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
         }
 
         private void processBodyPerLine(byte[] body, BulkRequestBuilder bulkRequestBuilder) throws Exception {
-            BufferedReader reader = new BufferedReader(new StringReader(new String(body)));
+            BufferedReader reader = new BufferedReader(new FastStringReader(new String(body, StandardCharsets.UTF_8)));
 
             JsonFactory factory = new JsonFactory();
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
@@ -510,7 +514,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                 if (asMap.get("delete") != null) {
                     // We don't touch deleteRequests
                     String newContent = line + "\n";
-                    bulkRequestBuilder.add(newContent.getBytes(), 0, newContent.getBytes().length);
+                    bulkRequestBuilder.add(newContent.getBytes(StandardCharsets.UTF_8), 0, newContent.getBytes(StandardCharsets.UTF_8).length);
                 } else {
                     // But we send other requests to the script Engine in ctx field
                     Map<String, Object> ctx;
@@ -528,7 +532,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
                     if (!asMap.isEmpty()) {
                         for (Map.Entry<String, Object> bulkItem : asMap.entrySet()) {
-                            String action = bulkItem.getKey().toLowerCase();
+                            String action = bulkItem.getKey().toLowerCase(Locale.ROOT);
                             if ("index".equals(action) || "update".equals(action) || "create".equals(action)) {
                                 script.setNextVar("_action", action);
 
@@ -558,7 +562,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                         if (logger.isTraceEnabled()) {
                             logger.trace("new bulk request is now: {}", request.toString());
                         }
-                        byte[] binRequest = request.toString().getBytes();
+                        byte[] binRequest = request.toString().getBytes(StandardCharsets.UTF_8);
                         bulkRequestBuilder.add(binRequest, 0, binRequest.length);
                     }
                 }
