@@ -32,7 +32,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.base.Predicate;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.IndexMissingException;
@@ -72,7 +71,7 @@ public class RabbitMQIntegrationTest extends AbstractRabbitMQTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("script.native.mock_script.type", MockScriptFactory.class)
                 .put("threadpool.bulk.queue_size", 200)
@@ -81,7 +80,7 @@ public class RabbitMQIntegrationTest extends AbstractRabbitMQTest {
 
     @Override
     public Settings indexSettings() {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.indexSettings())
                 .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
                 .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
