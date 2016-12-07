@@ -86,6 +86,8 @@ curl -XPUT 'localhost:9200/_river/my_river/_meta' -d '{
 }'
 ```
 
+***Note: creating an elasticsearch river times out and fails if not all shards are up***
+
 You can disable exchange or queue declaration by setting `exchange_declare` or `queue_declare` to `false`
 (`true` by default).
 You can disable queue binding by setting `queue_bind` to `false` (`true` by default).
