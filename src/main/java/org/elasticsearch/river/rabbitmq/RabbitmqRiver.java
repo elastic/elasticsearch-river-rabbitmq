@@ -338,6 +338,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
                     if (task != null && task.getBody() != null) {
                         final List<Long> deliveryTags = Lists.newArrayList();
+                        final List<String> theTasks = Lists.newArrayList();
 
                         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
 
@@ -354,6 +355,7 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                         }
 
                         deliveryTags.add(task.getEnvelope().getDeliveryTag());
+                        theTasks.add(new String(task.getBody()));
 
                         if (bulkRequestBuilder.numberOfActions() < bulkSize) {
                             // try and spin some more of those without timeout, so we have a bigger bulk (bounded by the bulk size)
@@ -362,8 +364,9 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                     try {
                                         processBody(task.getBody(), bulkRequestBuilder);
                                         deliveryTags.add(task.getEnvelope().getDeliveryTag());
+                                        theTasks.add(new String(task.getBody()));
                                     } catch (Throwable e) {
-                                        logger.warn("failed to parse request for delivery tag [{}], ack'ing...", e, task.getEnvelope().getDeliveryTag());
+                                        logger.warn("failed to parse request for delivery tag [{}], ack'ing...", e);
                                         try {
                                             channel.basicAck(task.getEnvelope().getDeliveryTag(), false);
                                         } catch (Exception e1) {
@@ -395,16 +398,23 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
 
                         if (ordered) {
                             try {
+                                Boolean isRecoverableFailure = false;
                                 if (bulkRequestBuilder.numberOfActions() > 0) {
                                   BulkResponse response = bulkRequestBuilder.execute().actionGet();
                                   if (response.hasFailures()) {
                                     // TODO write to exception queue?
-                                    logger.warn("failed to execute" + response.buildFailureMessage());
+                                      String failMsg = response.buildFailureMessage()
+                                      isRecoverableFailure = failMsg.contains("EsRejectedExecutionException");
+                                      logger.warn("failed to execute" + failMsg);
                                   }
                                 }
                                 for (Long deliveryTag : deliveryTags) {
                                     try {
-                                        channel.basicAck(deliveryTag, false);
+                                        if (isRecoverableFailure) {
+                                            channel.basicNack(deliveryTag, false, false);
+                                        } else {
+                                            channel.basicAck(deliveryTag, false);
+                                        }
                                     } catch (Exception e1) {
                                         logger.warn("failed to ack [{}]", e1, deliveryTag);
                                     }
@@ -412,7 +422,11 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                             } catch (Exception e) {
                                 logger.warn("failed to execute bulk", e);
                                 if (rabbitNackErrors) {
-                                    logger.warn("failed to execute bulk for delivery tags [{}], nack'ing", e, deliveryTags);
+                                    String taskBodies = "";
+                                    for (String tb: theTasks) {
+                                        taskBodies += tb;
+                                    }
+                                    logger.warn("failed to execute bulk for delivery tags [{}], nack'ing" + taskBodies, e, deliveryTags);
                                     for (Long deliveryTag : deliveryTags) {
                                         try {
                                             channel.basicNack(deliveryTag, false, false);
@@ -435,7 +449,6 @@ public class RabbitmqRiver extends AbstractRiverComponent implements River {
                                         }
                                         for (Long deliveryTag : deliveryTags) {
                                             try {
-                                                channel.basicAck(deliveryTag, false);
                                             } catch (Exception e1) {
                                                 logger.warn("failed to ack [{}]", e1, deliveryTag);
                                             }
